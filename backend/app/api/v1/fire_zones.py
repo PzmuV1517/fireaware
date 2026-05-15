@@ -2,7 +2,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from geoalchemy2.shape import from_shape, to_shape
 from shapely.geometry import Polygon
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.api.deps import require_fireman
@@ -16,7 +16,8 @@ def _zone_to_out(z: FireZone) -> FireZoneOut:
     poly: Polygon = to_shape(z.polygon)
     coords = [[lon, lat] for lon, lat in poly.exterior.coords[:-1]]
     return FireZoneOut(id=z.id, created_by=z.created_by, coordinates=coords,
-                       label=z.label, color=z.color, is_active=z.is_active, created_at=z.created_at)
+                       label=z.label, color=z.color, area_m2=z.area_m2,
+                       is_active=z.is_active, created_at=z.created_at)
 
 @router.get("", response_model=list[FireZoneOut])
 def list_fire_zones(db: Session = Depends(get_db)) -> list[FireZoneOut]:
@@ -31,7 +32,9 @@ def create_fire_zone(body: FireZoneCreate, db: Session = Depends(get_db), user: 
     poly = Polygon(coords)
     if not poly.is_valid:
         raise HTTPException(status_code=422, detail="Invalid polygon geometry")
-    zone = FireZone(created_by=user.id, polygon=from_shape(poly, srid=4326), label=body.label, color=body.color)
+    poly_wkb = from_shape(poly, srid=4326)
+    area_m2 = abs(float(db.scalar(select(func.ST_Area(poly_wkb))) or 0))
+    zone = FireZone(created_by=user.id, polygon=poly_wkb, label=body.label, color=body.color, area_m2=area_m2)
     db.add(zone)
     db.commit()
     db.refresh(zone)

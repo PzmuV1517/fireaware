@@ -13,6 +13,7 @@ import {
   polygonTop,
 } from "./types";
 import type {
+  CuttingLineMarker,
   FireMarker,
   FireZoneMarker,
   MapViewProps,
@@ -40,6 +41,8 @@ const WATER_SOURCE = "fa-water-reserves";
 const WATER_DOT_LAYER = "fa-water-reserves-dots";
 const WATER_LINK_SOURCE = "fa-water-links";
 const WATER_LINK_LAYER = "fa-water-links";
+const CUTTING_SOURCE = "fa-cutting-lines";
+const CUTTING_LAYER = "fa-cutting-lines";
 
 export function MapView({
   fires,
@@ -55,6 +58,9 @@ export function MapView({
   onMapClick,
   waterReserves,
   showClosestWater,
+  styleUrl,
+  hidePois,
+  cuttingLines,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -71,6 +77,7 @@ export function MapView({
   // effect depends on this so they re-apply current data after a tab focus or
   // a maplibre style reload.
   const [mapEpoch, setMapEpoch] = useState(0);
+  const prevStyleUrlRef = useRef(styleUrl ?? STYLE_URL);
 
   // init map
   useEffect(() => {
@@ -80,7 +87,7 @@ export function MapView({
       : [-9.1393, 38.7223];
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: STYLE_URL,
+      style: styleUrl ?? STYLE_URL,
       center,
       zoom: initialZoom,
       attributionControl: { compact: true },
@@ -213,6 +220,14 @@ export function MapView({
             "circle-stroke-color": "#FFFFFF",
             "circle-stroke-width": 2,
           },
+        });
+      }
+      // vegetation cutting lines
+      if (!map.getSource(CUTTING_SOURCE)) {
+        map.addSource(CUTTING_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: CUTTING_LAYER, type: "line", source: CUTTING_SOURCE,
+          paint: { "line-color": "#E8A317", "line-width": 3, "line-dasharray": [6, 3] },
         });
       }
       // drawing preview
@@ -409,6 +424,39 @@ export function MapView({
     else map.once("idle", apply);
   }, [waterReserves, fires, showClosestWater, mapEpoch, redrawTick]);
 
+  // sync cutting lines
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource(CUTTING_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(cuttingLinesToFC(cuttingLines ?? []));
+    };
+    if (map.isStyleLoaded() && map.getSource(CUTTING_SOURCE)) apply();
+    else map.once("idle", apply);
+  }, [cuttingLines, mapEpoch]);
+
+  // switch base tile style when styleUrl prop changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const next = styleUrl ?? STYLE_URL;
+    if (next === prevStyleUrlRef.current) return;
+    prevStyleUrlRef.current = next;
+    map.setStyle(next);
+  }, [styleUrl]);
+
+  // hide/show POI layers after every style load or when hidePois toggles
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+    for (const layer of map.getStyle().layers ?? []) {
+      if ((layer as { "source-layer"?: string })["source-layer"] === "poi") {
+        map.setLayoutProperty(layer.id, "visibility", hidePois ? "none" : "visible");
+      }
+    }
+  }, [hidePois, mapEpoch]);
+
   // cursor: crosshair when onMapClick is provided (pin cursor takes priority)
   useEffect(() => {
     const map = mapRef.current;
@@ -485,6 +533,17 @@ function syncPin(
   }
   current.setLngLat([coord.lon, coord.lat]);
   return current;
+}
+
+function cuttingLinesToFC(lines: CuttingLineMarker[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: lines.map((l) => ({
+      type: "Feature" as const,
+      properties: { id: l.id, label: l.label ?? "" },
+      geometry: { type: "LineString" as const, coordinates: l.coordinates },
+    })),
+  };
 }
 
 function emptyFC() {

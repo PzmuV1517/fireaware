@@ -106,6 +106,7 @@ export interface FireZone {
   coordinates: [number, number][];
   label: string | null;
   color: string;
+  area_m2: number;
   is_active: boolean;
   created_at: string;
 }
@@ -116,6 +117,16 @@ export interface WaterReserve {
   lon: number;
   name: string;
   capacity_l: number | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CuttingLine {
+  id: string;
+  created_by: string;
+  coordinates: [number, number][];
+  label: string | null;
+  length_m: number;
   is_active: boolean;
   created_at: string;
 }
@@ -203,5 +214,15 @@ export const api = {
       }),
     delete: (id: string) =>
       request<void>(`/api/v1/water-reserves/${id}`, { method: "DELETE" }),
+  },
+  cuttingLines: {
+    list: () => request<CuttingLine[]>("/api/v1/cutting-lines", { auth: false }),
+    create: (body: { coordinates: [number, number][]; label?: string | null }) =>
+      request<CuttingLine>("/api/v1/cutting-lines", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<void>(`/api/v1/cutting-lines/${id}`, { method: "DELETE" }),
   },
 };

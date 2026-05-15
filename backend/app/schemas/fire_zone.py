@@ -13,5 +13,6 @@ class FireZoneOut(BaseModel):
     coordinates: list[list[float]]
     label: str | None
     color: str
+    area_m2: float
     is_active: bool
     created_at: datetime

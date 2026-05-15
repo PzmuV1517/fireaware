@@ -34,6 +34,12 @@ export interface WaterReserveMarker {
   name: string;
 }
 
+export interface CuttingLineMarker {
+  id: string;
+  coordinates: [number, number][];
+  label?: string | null;
+}
+
 export interface MapViewProps {
   fires: FireMarker[];
   reports?: ReportMarker[];
@@ -53,6 +59,11 @@ export interface MapViewProps {
   waterReserves?: WaterReserveMarker[];
   /** Show a connecting line from each fire to its closest active water reserve. */
   showClosestWater?: boolean;
+  /** MapLibre style URL. Defaults to the positron style. */
+  styleUrl?: string;
+  /** Hide all POI icon/label layers after the style loads. */
+  hidePois?: boolean;
+  cuttingLines?: CuttingLineMarker[];
 }
 
 const EARTH_R = 6_371_000;

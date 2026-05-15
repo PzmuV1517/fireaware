@@ -12,6 +12,7 @@ import { View } from "react-native";
 
 import { MapView } from "@/components/map/MapView";
 import type {
+  CuttingLineMarker,
   FireZoneMarker,
   MapViewProps,
   PinOverlay,
@@ -32,6 +33,8 @@ export interface MapShellConfig {
   drawingPoints?: [number, number][];
   onMapClick?: (coord: { lat: number; lon: number }) => void;
   onSelectFire?: (id: string) => void;
+  styleUrl?: string;
+  hidePois?: boolean;
 }
 
 interface MapShellApi {
@@ -103,6 +106,13 @@ export function MapShell({ children }: { children: ReactNode }) {
     placeholderData: keepPreviousData,
   });
 
+  const { data: cuttingLines } = useQuery({
+    queryKey: ["cutting-lines"],
+    queryFn: () => api.cuttingLines.list(),
+    refetchInterval: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
   const configRef = useRef(config);
   configRef.current = config;
 
@@ -116,7 +126,9 @@ export function MapShell({ children }: { children: ReactNode }) {
       prev.pin === next.pin &&
       prev.drawingPoints === next.drawingPoints &&
       prev.onMapClick === next.onMapClick &&
-      prev.onSelectFire === next.onSelectFire
+      prev.onSelectFire === next.onSelectFire &&
+      prev.styleUrl === next.styleUrl &&
+      prev.hidePois === next.hidePois
     ) {
       return;
     }
@@ -133,6 +145,7 @@ export function MapShell({ children }: { children: ReactNode }) {
       qc.refetchQueries({ queryKey: ["reports", "public"] }),
       qc.refetchQueries({ queryKey: ["fire-zones"] }),
       qc.refetchQueries({ queryKey: ["water-reserves"] }),
+      qc.refetchQueries({ queryKey: ["cutting-lines"] }),
     ]);
   }, [qc]);
 
@@ -202,6 +215,16 @@ export function MapShell({ children }: { children: ReactNode }) {
     [waterReserves],
   );
 
+  const cuttingLineMarkers = useMemo<CuttingLineMarker[]>(
+    () =>
+      (cuttingLines ?? []).map((l) => ({
+        id: l.id,
+        coordinates: l.coordinates,
+        label: l.label,
+      })),
+    [cuttingLines],
+  );
+
   return (
     <Ctx.Provider value={api_}>
       <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
@@ -217,6 +240,9 @@ export function MapShell({ children }: { children: ReactNode }) {
             drawingPoints={config.drawingPoints}
             onMapClick={config.onMapClick}
             onSelectFire={config.onSelectFire}
+            cuttingLines={cuttingLineMarkers}
+            styleUrl={config.styleUrl}
+            hidePois={config.hidePois}
             redrawTick={redrawTick}
             initialCenter={mapCenter.center}
             initialZoom={mapCenter.zoom}

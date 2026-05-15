@@ -17,6 +17,7 @@ export function MapView({
   fireZones,
   waterReserves,
   showClosestWater,
+  cuttingLines,
 }: MapViewProps) {
   const center = initialCenter ?? { lat: 38.7223, lon: -9.1393 };
   const delta = zoomToDelta(initialZoom);
@@ -141,6 +142,17 @@ export function MapView({
             </>
           );
         })()}
+
+      {(cuttingLines ?? []).map((l) => (
+        <Polyline
+          key={`cut-${l.id}`}
+          coordinates={l.coordinates.map(([lon, lat]) => ({ latitude: lat, longitude: lon }))}
+          strokeColor="#E8A317"
+          strokeWidth={3}
+          lineDashPattern={[8, 4]}
+          zIndex={3}
+        />
+      ))}
 
       {(fireZones ?? []).map((z) => (
         <Polygon
