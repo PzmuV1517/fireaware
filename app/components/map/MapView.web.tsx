@@ -43,6 +43,14 @@ export function MapView({
       attributionControl: { compact: true },
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(
+      new maplibregl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: true,
+        showUserLocation: true,
+      }),
+      "top-right",
+    );
     mapRef.current = map;
 
     map.on("load", () => {

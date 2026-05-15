@@ -21,6 +21,8 @@ export function MapView({
     <RNMapView
       style={StyleSheet.absoluteFillObject}
       provider={PROVIDER_DEFAULT}
+      showsUserLocation
+      showsMyLocationButton={false}
       initialRegion={{
         latitude: center.lat,
         longitude: center.lon,

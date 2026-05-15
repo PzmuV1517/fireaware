@@ -8,12 +8,14 @@ import { MapView } from "@/components/map/MapView";
 import { Text } from "@/components/ui/Text";
 import { Toggle } from "@/components/ui/Toggle";
 import { api } from "@/lib/api";
+import { useInitialMapCenter } from "@/lib/useInitialMapCenter";
 import { useTheme } from "@/theme";
 
 export default function AppMap() {
   const t = useTheme();
   const router = useRouter();
   const [showReports, setShowReports] = useState(false);
+  const mapCenter = useInitialMapCenter();
 
   const { data: fires } = useQuery({
     queryKey: ["fires", "all"],
@@ -30,24 +32,28 @@ export default function AppMap() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-      <MapView
-        fires={(fires ?? []).map((f) => ({
-          id: f.id,
-          lat: f.lat,
-          lon: f.lon,
-          confidence: f.confidence,
-          reportCount: f.report_count,
-        }))}
-        reports={(reports ?? []).map((r) => ({
-          id: r.id,
-          lat: r.lat,
-          lon: r.lon,
-          bearingDeg: r.bearing_deg,
-          matched: r.fire_id != null,
-        }))}
-        showReports={showReports}
-        onSelectFire={(id) => router.push(`/fire/${id}`)}
-      />
+      {mapCenter && (
+        <MapView
+          fires={(fires ?? []).map((f) => ({
+            id: f.id,
+            lat: f.lat,
+            lon: f.lon,
+            confidence: f.confidence,
+            reportCount: f.report_count,
+          }))}
+          reports={(reports ?? []).map((r) => ({
+            id: r.id,
+            lat: r.lat,
+            lon: r.lon,
+            bearingDeg: r.bearing_deg,
+            matched: r.fire_id != null,
+          }))}
+          showReports={showReports}
+          initialCenter={mapCenter.center}
+          initialZoom={mapCenter.zoom}
+          onSelectFire={(id) => router.push(`/fire/${id}`)}
+        />
+      )}
       <SafeAreaView pointerEvents="box-none" style={styles.top}>
         <Toggle
           label={showReports ? "Reports on" : "Show reports"}
