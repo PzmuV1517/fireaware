@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
@@ -70,6 +71,25 @@ export default function AppMap() {
             if (v) qc.refetchQueries({ queryKey: ["reports", "public"] });
           }}
         />
+        <View style={{ flex: 1 }} />
+        <Link href="/(app)/settings" asChild>
+          <Pressable
+            accessibilityLabel="Open settings"
+            style={({ pressed }) => ({
+              backgroundColor: t.colors.surface,
+              borderColor: t.colors.border,
+              borderWidth: 1,
+              width: 40,
+              height: 40,
+              borderRadius: 999,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <Ionicons name="settings-outline" size={20} color={t.colors.ink} />
+          </Pressable>
+        </Link>
       </SafeAreaView>
       <SafeAreaView pointerEvents="box-none" style={styles.bottomBar}>
         <Link href="/(app)/report" asChild>
@@ -103,6 +123,8 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 16,
     flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   bottomBar: {
     position: "absolute",

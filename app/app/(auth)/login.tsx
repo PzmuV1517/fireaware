@@ -1,14 +1,14 @@
 import { Link, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { BackendUrlEditor } from "@/components/BackendUrlEditor";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { api } from "@/lib/api";
 import { authStore } from "@/lib/auth";
-import { configStore, getDefaultApiBase } from "@/lib/config";
 import { useTheme } from "@/theme";
 
 export default function LoginScreen() {
@@ -19,13 +19,6 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { apiBase, override } = configStore();
-  const [showApi, setShowApi] = useState(false);
-  const [apiInput, setApiInput] = useState("");
-
-  useEffect(() => {
-    setApiInput(override ?? apiBase);
-  }, [override, apiBase]);
 
   const submit = async () => {
     setLoading(true);
@@ -39,15 +32,6 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const saveApi = async () => {
-    await configStore.getState().setOverride(apiInput);
-    setShowApi(false);
-  };
-  const resetApi = async () => {
-    await configStore.getState().setOverride(null);
-    setApiInput(getDefaultApiBase());
   };
 
   return (
@@ -106,42 +90,7 @@ export default function LoginScreen() {
             </Link>
           </View>
 
-          <View
-            style={{
-              borderTopWidth: 1,
-              borderTopColor: t.colors.border,
-              paddingTop: t.space.md,
-              gap: t.space.sm,
-            }}
-          >
-            <Pressable onPress={() => setShowApi((s) => !s)}>
-              <Text variant="label" muted>
-                backend {override ? "(custom)" : "(auto)"} {showApi ? "▾" : "▸"}
-              </Text>
-              <Text variant="mono" muted style={{ fontSize: 11 }} numberOfLines={1}>
-                {apiBase}
-              </Text>
-            </Pressable>
-
-            {showApi && (
-              <View style={{ gap: t.space.sm }}>
-                <Input
-                  label="Backend URL"
-                  value={apiInput}
-                  onChangeText={setApiInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  placeholder="http://192.168.x.x:8000"
-                  hint={`default: ${getDefaultApiBase()}`}
-                />
-                <View style={{ flexDirection: "row", gap: t.space.sm }}>
-                  <Button label="Save" onPress={saveApi} />
-                  <Button label="Reset" variant="secondary" onPress={resetApi} />
-                </View>
-              </View>
-            )}
-          </View>
+          <BackendUrlEditor />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

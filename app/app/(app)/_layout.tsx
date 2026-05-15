@@ -35,6 +35,7 @@ export default function AppLayout() {
       <Tabs.Screen name="map" options={{ title: "Map", headerShown: false }} />
       <Tabs.Screen name="report" options={{ title: "Report", headerShown: false }} />
       <Tabs.Screen name="profile" options={{ title: "Profile" }} />
+      <Tabs.Screen name="settings" options={{ title: "Settings", href: null }} />
     </Tabs>
   );
 }
