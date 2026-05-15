@@ -1,13 +1,14 @@
-from typing import Literal
-
 from pydantic import BaseModel, EmailStr, Field
 
 
 class RegisterRequest(BaseModel):
+    """Public self-registration. Always creates a civilian account; fireman
+    accounts are provisioned exclusively from the FIREMAN_EMAIL_N /
+    FIREMAN_PASSWORD_N env vars at server startup."""
+
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     display_name: str = Field(min_length=2, max_length=80)
-    role: Literal["civilian", "fireman"] = "civilian"
 
 
 class LoginRequest(BaseModel):

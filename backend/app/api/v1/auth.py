@@ -29,11 +29,13 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)) -> TokenPair:
     existing = db.scalar(select(User).where(User.email == body.email.lower()))
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
+    # public registration always creates a civilian; fireman accounts come
+    # from FIREMAN_EMAIL_N env vars on startup, never from this endpoint
     user = User(
         email=body.email.lower(),
         password_hash=hash_password(body.password),
         display_name=body.display_name,
-        role=body.role,
+        role="civilian",
     )
     db.add(user)
     db.commit()

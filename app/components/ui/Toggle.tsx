@@ -15,7 +15,6 @@ export function Toggle({ label, value, onChange }: Props) {
   return (
     <Pressable
       onPress={() => onChange(!value)}
-      android_ripple={{ color: t.colors.accent }}
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",

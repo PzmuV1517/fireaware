@@ -27,6 +27,13 @@ export interface FireZoneMarker {
   color: string;
 }
 
+export interface WaterReserveMarker {
+  id: string;
+  lat: number;
+  lon: number;
+  name: string;
+}
+
 export interface MapViewProps {
   fires: FireMarker[];
   reports?: ReportMarker[];
@@ -43,6 +50,9 @@ export interface MapViewProps {
   fireZones?: FireZoneMarker[];
   drawingPoints?: [number, number][];  // live polygon vertices [lon, lat], only used on web
   onMapClick?: (coord: { lat: number; lon: number }) => void;
+  waterReserves?: WaterReserveMarker[];
+  /** Show a connecting line from each fire to its closest active water reserve. */
+  showClosestWater?: boolean;
 }
 
 const EARTH_R = 6_371_000;
@@ -69,6 +79,43 @@ export function offsetPoint(
 }
 
 export const BEARING_LINE_M = 3000;
+
+/** Great-circle distance in metres between two points. */
+export function haversineM(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const dLam = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+/** Centroid of a polygon ring (simple coordinate mean — adequate for labels). */
+export function polygonCentroid(coords: [number, number][]): { lat: number; lon: number } {
+  let sx = 0;
+  let sy = 0;
+  for (const [lon, lat] of coords) {
+    sx += lon;
+    sy += lat;
+  }
+  const n = coords.length || 1;
+  return { lon: sx / n, lat: sy / n };
+}
+
+/** Topmost (max-latitude) vertex of a polygon — used to anchor labels just above the zone. */
+export function polygonTop(coords: [number, number][]): { lat: number; lon: number } {
+  if (coords.length === 0) return { lat: 0, lon: 0 };
+  let max = coords[0];
+  for (const c of coords) if (c[1] > max[1]) max = c;
+  return { lat: max[1], lon: max[0] };
+}
 
 /** Initial-bearing from p1 to p2 along the great circle, in degrees [0, 360). */
 export function bearingBetween(

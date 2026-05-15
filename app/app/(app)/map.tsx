@@ -89,7 +89,6 @@ export default function AppMap() {
         <Pressable
           accessibilityLabel="Open settings"
           onPress={() => router.push("/(app)/settings")}
-          android_ripple={{ color: t.colors.accent, borderless: true }}
           style={({ pressed }) => [
             styles.gearButton,
             {

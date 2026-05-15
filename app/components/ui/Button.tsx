@@ -24,25 +24,22 @@ export function Button({
 }: Props) {
   const t = useTheme();
 
-  const baseBg =
-    variant === "primary"
-      ? t.colors.accent
-      : variant === "secondary"
-        ? t.colors.surface
-        : "transparent";
-  const baseFg = variant === "primary" ? "#FFFFFF" : t.colors.ink;
-  const borderColor = variant === "secondary" ? t.colors.border : "transparent";
+  // Buttons stay on-brand in every state: primary = filled orange, secondary
+  // = outlined orange. Both turn solid orange while pressed; secondary lifts
+  // back to outlined on release (never grey/white surface).
+  const baseBg = variant === "primary" ? t.colors.accent : "transparent";
+  const baseFg = variant === "primary" ? "#FFFFFF" : t.colors.accent;
+  const baseBorder = variant === "secondary" ? t.colors.accent : "transparent";
 
   return (
     <Pressable
       disabled={disabled || loading}
-      android_ripple={{ color: t.colors.accent }}
       {...rest}
       style={(state) => [
         {
           backgroundColor: state.pressed ? t.colors.accent : baseBg,
-          borderColor: state.pressed ? t.colors.accent : borderColor,
-          borderWidth: variant === "secondary" ? 1 : 0,
+          borderColor: state.pressed ? t.colors.accent : baseBorder,
+          borderWidth: variant === "secondary" ? 1.5 : 0,
           paddingVertical: t.space.md,
           paddingHorizontal: t.space.xl,
           borderRadius: t.radius.md,
@@ -57,6 +54,8 @@ export function Button({
       ]}
     >
       {({ pressed }) => {
+        // when pressed the bg is solid accent, so the foreground must be white;
+        // otherwise primary stays white, secondary uses the accent for text.
         const fg = pressed ? "#FFFFFF" : baseFg;
         return loading ? (
           <ActivityIndicator color={fg} />

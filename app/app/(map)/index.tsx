@@ -1,10 +1,11 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useRouter } from "expo-router";
-import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { MapView } from "@/components/map/MapView";
+import { LoginIsland } from "@/components/LoginIsland";
+import { useMapShell } from "@/components/MapShell";
 import { bearingBetween } from "@/components/map/types";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
@@ -13,7 +14,6 @@ import { WebNavBar } from "@/components/ui/WebNavBar";
 import { WeatherWidget } from "@/components/ui/WeatherWidget";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useInitialMapCenter } from "@/lib/useInitialMapCenter";
 import { useTheme } from "@/theme";
 
 type LatLon = { lat: number; lon: number };
@@ -23,8 +23,8 @@ export default function PublicMapScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const { accessToken, role } = useAuth();
+  const { setConfig, bumpRedraw, refetch } = useMapShell();
   const [showReports, setShowReports] = useState(false);
-  const mapCenter = useInitialMapCenter();
 
   // web-only pin-drop demo state
   const [pinMode, setPinMode] = useState(false);
@@ -32,35 +32,32 @@ export default function PublicMapScreen() {
   const [target, setTarget] = useState<LatLon | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [redrawTick, setRedrawTick] = useState(0);
-
-  const { data: fires } = useQuery({
-    queryKey: ["fires", "all"],
-    queryFn: () => api.fires.list(),
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
-    placeholderData: keepPreviousData,
-  });
-
-  const { data: reports } = useQuery({
-    queryKey: ["reports", "public"],
-    queryFn: () => api.reports.list({ sinceMin: 240 }),
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
-    refetchOnMount: "always",
-    staleTime: 0,
-    placeholderData: keepPreviousData,
-    enabled: showReports,
-  });
 
   const bearing =
     observer && target ? bearingBetween(observer.lat, observer.lon, target.lat, target.lon) : null;
 
-  const handleMapClick = (coord: LatLon) => {
-    if (!pinMode) return;
-    if (!observer) setObserver(coord);
-    else setTarget(coord);
-  };
+  const handleMapClick = useCallback(
+    (coord: LatLon) => {
+      if (!pinMode) return;
+      if (!observer) setObserver(coord);
+      else setTarget(coord);
+    },
+    [pinMode, observer],
+  );
+
+  // sync this screen's overrides into the shared MapShell every time relevant
+  // state changes. On unfocus we clear the config so mission-control gets a
+  // clean slate.
+  useFocusEffect(
+    useCallback(() => {
+      setConfig({
+        showReports,
+        pin: pinMode ? { observer, target, onMapClick: handleMapClick } : undefined,
+        onSelectFire: pinMode ? undefined : (id) => router.push(`/fire/${id}`),
+      });
+      return () => setConfig({});
+    }, [showReports, pinMode, observer, target, handleMapClick, router, setConfig]),
+  );
 
   const resetPin = () => {
     setObserver(null);
@@ -71,9 +68,7 @@ export default function PublicMapScreen() {
   const cancelPin = () => {
     setPinMode(false);
     resetPin();
-    // force the map to reapply fires/reports — covers the case where the
-    // structurally-shared array reference would otherwise leave the layers stale
-    setRedrawTick((n) => n + 1);
+    bumpRedraw();
   };
 
   const submitPin = async () => {
@@ -86,14 +81,10 @@ export default function PublicMapScreen() {
         lon: observer.lon,
         bearing_deg: bearing,
       });
-      // surface the just-dropped pin to the user
       setShowReports(true);
-      await Promise.all([
-        qc.refetchQueries({ queryKey: ["fires"] }),
-        qc.refetchQueries({ queryKey: ["reports", "public"] }),
-      ]);
+      await refetch();
       resetPin();
-      setRedrawTick((n) => n + 1);
+      bumpRedraw();
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Submission failed");
     } finally {
@@ -102,59 +93,22 @@ export default function PublicMapScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-      {mapCenter && (
-        <MapView
-          fires={(fires ?? []).map((f) => ({
-            id: f.id,
-            lat: f.lat,
-            lon: f.lon,
-            confidence: f.confidence,
-            reportCount: f.report_count,
-          }))}
-          reports={(reports ?? []).map((r) => ({
-            id: r.id,
-            lat: r.lat,
-            lon: r.lon,
-            bearingDeg: r.bearing_deg,
-            matched: r.fire_id != null,
-          }))}
-          showReports={showReports}
-          pin={
-            pinMode
-              ? { observer, target, onMapClick: handleMapClick }
-              : undefined
-          }
-          redrawTick={redrawTick}
-          initialCenter={mapCenter.center}
-          initialZoom={mapCenter.zoom}
-          onSelectFire={(id) => (pinMode ? null : router.push(`/fire/${id}`))}
-        />
-      )}
-
+    <>
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
-        {Platform.OS === "web" && accessToken ? (
-          <WebNavBar currentPage="map" isFireman={role === "fireman"} />
-        ) : (
-          <View
-            style={[
-              styles.headerCard,
-              { backgroundColor: t.colors.surface, borderColor: t.colors.border },
-            ]}
-          >
-            <Text variant="h2">FireAware</Text>
-            <Text variant="subtext" muted>
-              community-sighted fires, triangulated and mapped
-            </Text>
-            {Platform.OS === "web" ? (
-              <Link href="/(auth)/login" asChild>
-                <Pressable style={{ marginTop: t.space.sm }}>
-                  <Text variant="label" color={t.colors.accent}>
-                    Sign in →
-                  </Text>
-                </Pressable>
-              </Link>
-            ) : accessToken ? (
+        {accessToken ? (
+          Platform.OS === "web" ? (
+            <WebNavBar currentPage="map" isFireman={role === "fireman"} />
+          ) : (
+            <View
+              style={[
+                styles.headerCard,
+                { backgroundColor: t.colors.surface, borderColor: t.colors.border },
+              ]}
+            >
+              <Text variant="h2">FireAware</Text>
+              <Text variant="subtext" muted>
+                community-sighted fires, triangulated and mapped
+              </Text>
               <Link href="/(app)/map" asChild>
                 <Pressable style={{ marginTop: t.space.sm }}>
                   <Text variant="label" color={t.colors.accent}>
@@ -162,16 +116,10 @@ export default function PublicMapScreen() {
                   </Text>
                 </Pressable>
               </Link>
-            ) : (
-              <Link href="/(auth)/login" asChild>
-                <Pressable style={{ marginTop: t.space.sm }}>
-                  <Text variant="label" color={t.colors.accent}>
-                    Sign in to report →
-                  </Text>
-                </Pressable>
-              </Link>
-            )}
-          </View>
+            </View>
+          )
+        ) : (
+          <LoginIsland />
         )}
 
         <View style={styles.controlsRow} pointerEvents="box-none">
@@ -250,7 +198,7 @@ export default function PublicMapScreen() {
           </View>
         </SafeAreaView>
       )}
-    </View>
+    </>
   );
 }
 
@@ -286,7 +234,7 @@ const styles = StyleSheet.create({
   },
   bottomLeft: {
     position: "absolute",
-    bottom: 0,
+    bottom: 24, // clears the maplibre attribution strip
     right: 0,
     padding: 16,
   },

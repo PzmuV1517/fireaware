@@ -5,8 +5,20 @@ import { StyleSheet, View } from "react-native";
 
 import { colors } from "@/theme/tokens";
 
-import { BEARING_LINE_M, bearingBetween, offsetPoint } from "./types";
-import type { FireMarker, FireZoneMarker, MapViewProps, ReportMarker } from "./types";
+import {
+  BEARING_LINE_M,
+  bearingBetween,
+  haversineM,
+  offsetPoint,
+  polygonTop,
+} from "./types";
+import type {
+  FireMarker,
+  FireZoneMarker,
+  MapViewProps,
+  ReportMarker,
+  WaterReserveMarker,
+} from "./types";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 const LINES_SOURCE = "fa-report-lines";
@@ -19,9 +31,15 @@ const PIN_LINE_LAYER = "fa-pin-line";
 const ZONES_SOURCE = "fa-fire-zones";
 const ZONES_FILL_LAYER = "fa-fire-zones-fill";
 const ZONES_LINE_LAYER = "fa-fire-zones-line";
+const ZONE_LABELS_SOURCE = "fa-fire-zone-labels";
+const ZONE_LABELS_LAYER = "fa-fire-zone-labels";
 const DRAWING_SOURCE = "fa-drawing";
 const DRAWING_LINE_LAYER = "fa-drawing-line";
 const DRAWING_DOTS_LAYER = "fa-drawing-dots";
+const WATER_SOURCE = "fa-water-reserves";
+const WATER_DOT_LAYER = "fa-water-reserves-dots";
+const WATER_LINK_SOURCE = "fa-water-links";
+const WATER_LINK_LAYER = "fa-water-links";
 
 export function MapView({
   fires,
@@ -35,6 +53,8 @@ export function MapView({
   fireZones,
   drawingPoints,
   onMapClick,
+  waterReserves,
+  showClosestWater,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -142,6 +162,57 @@ export function MapView({
         map.addLayer({
           id: ZONES_LINE_LAYER, type: "line", source: ZONES_SOURCE,
           paint: { "line-color": ["get", "color"], "line-width": 2, "line-opacity": 0.9 },
+        });
+      }
+      // zone labels — separate Point source so we control anchor + offset
+      if (!map.getSource(ZONE_LABELS_SOURCE)) {
+        map.addSource(ZONE_LABELS_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: ZONE_LABELS_LAYER,
+          type: "symbol",
+          source: ZONE_LABELS_SOURCE,
+          layout: {
+            "text-field": ["get", "label"],
+            "text-size": 13,
+            "text-anchor": "bottom",
+            "text-offset": [0, -0.4],
+            "text-allow-overlap": false,
+            "text-font": ["Noto Sans Bold"],
+          },
+          paint: {
+            "text-color": ["get", "color"],
+            "text-halo-color": "#FFFFFF",
+            "text-halo-width": 2,
+          },
+        });
+      }
+      // water reserves + fire→reserve link lines
+      if (!map.getSource(WATER_LINK_SOURCE)) {
+        map.addSource(WATER_LINK_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: WATER_LINK_LAYER,
+          type: "line",
+          source: WATER_LINK_SOURCE,
+          paint: {
+            "line-color": "#2A7FC9",
+            "line-width": 2,
+            "line-dasharray": [3, 2],
+            "line-opacity": 0.85,
+          },
+        });
+      }
+      if (!map.getSource(WATER_SOURCE)) {
+        map.addSource(WATER_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: WATER_DOT_LAYER,
+          type: "circle",
+          source: WATER_SOURCE,
+          paint: {
+            "circle-radius": 6,
+            "circle-color": "#2A7FC9",
+            "circle-stroke-color": "#FFFFFF",
+            "circle-stroke-width": 2,
+          },
         });
       }
       // drawing preview
@@ -293,13 +364,15 @@ export function MapView({
     else map.once("idle", apply);
   }, [reports, showReports, mapEpoch, redrawTick]);
 
-  // sync fire zones
+  // sync fire zones (polygons + labels)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const apply = () => {
       const src = map.getSource(ZONES_SOURCE) as maplibregl.GeoJSONSource | undefined;
       if (src) src.setData(fireZonesToFC(fireZones ?? []));
+      const labels = map.getSource(ZONE_LABELS_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (labels) labels.setData(fireZoneLabelsToFC(fireZones ?? []));
     };
     if (map.isStyleLoaded() && map.getSource(ZONES_SOURCE)) apply();
     else map.once("idle", apply);
@@ -316,6 +389,25 @@ export function MapView({
     if (map.isStyleLoaded() && map.getSource(DRAWING_SOURCE)) apply();
     else map.once("idle", apply);
   }, [drawingPoints, mapEpoch]);
+
+  // sync water reserves + fire→closest reserve links
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const water = map.getSource(WATER_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      const links = map.getSource(WATER_LINK_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (water) water.setData(waterReservesToFC(waterReserves ?? []));
+      if (links)
+        links.setData(
+          showClosestWater
+            ? closestLinksFC(fires, waterReserves ?? [])
+            : emptyFC(),
+        );
+    };
+    if (map.isStyleLoaded() && map.getSource(WATER_SOURCE)) apply();
+    else map.once("idle", apply);
+  }, [waterReserves, fires, showClosestWater, mapEpoch, redrawTick]);
 
   // cursor: crosshair when onMapClick is provided (pin cursor takes priority)
   useEffect(() => {
@@ -462,4 +554,63 @@ function drawingToFC(pts: [number, number][]) {
     });
   });
   return { type: "FeatureCollection" as const, features };
+}
+
+function fireZoneLabelsToFC(zones: FireZoneMarker[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: zones
+      .filter((z) => z.label && z.label.trim())
+      .map((z) => {
+        const top = polygonTop(z.coordinates);
+        return {
+          type: "Feature" as const,
+          properties: { id: z.id, label: z.label ?? "", color: z.color },
+          geometry: { type: "Point" as const, coordinates: [top.lon, top.lat] },
+        };
+      }),
+  };
+}
+
+function waterReservesToFC(reserves: WaterReserveMarker[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: reserves.map((r) => ({
+      type: "Feature" as const,
+      properties: { id: r.id, name: r.name },
+      geometry: { type: "Point" as const, coordinates: [r.lon, r.lat] },
+    })),
+  };
+}
+
+function closestLinksFC(fires: FireMarker[], reserves: WaterReserveMarker[]) {
+  if (reserves.length === 0) return emptyFC();
+  return {
+    type: "FeatureCollection" as const,
+    features: fires
+      .map((f) => {
+        let best: WaterReserveMarker | null = null;
+        let bestD = Infinity;
+        for (const r of reserves) {
+          const d = haversineM(f.lat, f.lon, r.lat, r.lon);
+          if (d < bestD) {
+            bestD = d;
+            best = r;
+          }
+        }
+        if (!best) return null;
+        return {
+          type: "Feature" as const,
+          properties: { fireId: f.id, reserveId: best.id, distance_m: bestD },
+          geometry: {
+            type: "LineString" as const,
+            coordinates: [
+              [f.lon, f.lat],
+              [best.lon, best.lat],
+            ],
+          },
+        };
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null),
+  };
 }

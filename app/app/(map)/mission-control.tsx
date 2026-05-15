@@ -1,17 +1,16 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Redirect, useRouter } from "expo-router";
-import { useState } from "react";
-import { Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Redirect, useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Ionicons } from "@expo/vector-icons";
-import { MapView } from "@/components/map/MapView";
+import { useMapShell } from "@/components/MapShell";
+import { haversineM } from "@/components/map/types";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import { WebNavBar } from "@/components/ui/WebNavBar";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useInitialMapCenter } from "@/lib/useInitialMapCenter";
 import { useTheme } from "@/theme";
 
 const ZONE_COLORS = ["#C9532A", "#E8A317", "#2A7FC9", "#2AC968"];
@@ -20,7 +19,8 @@ export default function MissionControlScreen() {
   const t = useTheme();
   const router = useRouter();
   const { role, hydrated } = useAuth();
-  const mapCenter = useInitialMapCenter();
+  const { setConfig, refetch, fires, waterReserves, resolveFire } = useMapShell();
+  const [resolving, setResolving] = useState<string | null>(null);
 
   const [drawing, setDrawing] = useState(false);
   const [points, setPoints] = useState<[number, number][]>([]);
@@ -29,34 +29,39 @@ export default function MissionControlScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { data: fires } = useQuery({
-    queryKey: ["fires", "all"],
-    queryFn: () => api.fires.list(),
-    refetchInterval: 30_000,
-    placeholderData: keepPreviousData,
-  });
+  const handleMapClick = useCallback(
+    (coord: { lat: number; lon: number }) => {
+      if (!drawing) return;
+      setPoints((prev) => [...prev, [coord.lon, coord.lat]]);
+    },
+    [drawing],
+  );
 
-  const { data: reports } = useQuery({
-    queryKey: ["reports", "public"],
-    queryFn: () => api.reports.list({ sinceMin: 240 }),
-    refetchInterval: 30_000,
-    placeholderData: keepPreviousData,
-  });
+  // sync this screen's map config into the shell whenever drawing state changes
+  useFocusEffect(
+    useCallback(() => {
+      setConfig({
+        showReports: true,
+        showClosestWater: true,
+        drawingPoints: drawing ? points : undefined,
+        onMapClick: drawing ? handleMapClick : undefined,
+        onSelectFire: drawing ? undefined : (id) => router.push(`/fire/${id}`),
+      });
+      return () => setConfig({});
+    }, [drawing, points, handleMapClick, router, setConfig]),
+  );
 
-  const { data: fireZones, refetch: refetchZones } = useQuery({
-    queryKey: ["fire-zones"],
-    queryFn: () => api.fireZones.list(),
-    refetchInterval: 60_000,
-    placeholderData: keepPreviousData,
-  });
+  const handleResolve = async (id: string) => {
+    setResolving(id);
+    try {
+      await resolveFire(id);
+    } finally {
+      setResolving(null);
+    }
+  };
 
   if (!hydrated) return null;
   if (role !== "fireman") return <Redirect href="/" />;
-
-  const handleMapClick = (coord: { lat: number; lon: number }) => {
-    if (!drawing) return;
-    setPoints((prev) => [...prev, [coord.lon, coord.lat]]);
-  };
 
   const handleUndo = () => setPoints((prev) => prev.slice(0, -1));
 
@@ -73,7 +78,7 @@ export default function MissionControlScreen() {
       setPoints([]);
       setLabel("");
       setDrawing(false);
-      await refetchZones();
+      await refetch();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Failed to save zone");
     } finally {
@@ -89,38 +94,7 @@ export default function MissionControlScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
-      {mapCenter && (
-        <MapView
-          fires={(fires ?? []).map((f) => ({
-            id: f.id,
-            lat: f.lat,
-            lon: f.lon,
-            confidence: f.confidence,
-            reportCount: f.report_count,
-          }))}
-          reports={(reports ?? []).map((r) => ({
-            id: r.id,
-            lat: r.lat,
-            lon: r.lon,
-            bearingDeg: r.bearing_deg,
-            matched: r.fire_id != null,
-          }))}
-          showReports
-          fireZones={(fireZones ?? []).map((z) => ({
-            id: z.id,
-            coordinates: z.coordinates as [number, number][],
-            label: z.label,
-            color: z.color,
-          }))}
-          drawingPoints={drawing ? points : undefined}
-          onMapClick={drawing ? handleMapClick : undefined}
-          initialCenter={mapCenter.center}
-          initialZoom={mapCenter.zoom}
-          onSelectFire={(id) => (drawing ? undefined : router.push(`/fire/${id}`))}
-        />
-      )}
-
+    <>
       <SafeAreaView pointerEvents="box-none" style={styles.header}>
         {Platform.OS === "web" ? (
           <WebNavBar currentPage="mission-control" isFireman />
@@ -144,6 +118,103 @@ export default function MissionControlScreen() {
           </View>
         )}
       </SafeAreaView>
+
+      {Platform.OS === "web" && (
+        <SafeAreaView pointerEvents="box-none" style={styles.sidebar}>
+          <View
+            style={[
+              styles.sidebarCard,
+              { backgroundColor: t.colors.surface, borderColor: t.colors.border },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Text variant="label" muted>
+                active fires
+              </Text>
+              <Text variant="caption" muted>
+                {fires.length}
+              </Text>
+            </View>
+            <ScrollView style={{ maxHeight: 320 }}>
+              {fires.length === 0 ? (
+                <Text variant="subtext" muted>
+                  no active incidents
+                </Text>
+              ) : (
+                fires.map((f) => {
+                  const reserve = nearestReserve(f.lat, f.lon, waterReserves);
+                  const isResolving = resolving === f.id;
+                  return (
+                    <View
+                      key={f.id}
+                      style={{
+                        paddingVertical: t.space.sm,
+                        borderBottomColor: t.colors.border,
+                        borderBottomWidth: 1,
+                        gap: 4,
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Text variant="mono" style={{ fontSize: 12 }}>
+                          {f.lat.toFixed(4)}°, {f.lon.toFixed(4)}°
+                        </Text>
+                        <Text variant="caption" muted>
+                          {(f.confidence * 100).toFixed(0)}% · {f.report_count} reports
+                        </Text>
+                      </View>
+                      {reserve ? (
+                        <Text variant="caption" color="#2A7FC9">
+                          ↳ {reserve.name} · {fmtKm(reserve.distance_m)}
+                        </Text>
+                      ) : (
+                        <Text variant="caption" muted>
+                          no water reserve known
+                        </Text>
+                      )}
+                      <Pressable
+                        onPress={() => handleResolve(f.id)}
+                        disabled={isResolving}
+                        style={({ pressed }) => ({
+                          alignSelf: "flex-start",
+                          marginTop: 4,
+                          paddingHorizontal: t.space.md,
+                          paddingVertical: 6,
+                          borderRadius: t.radius.pill,
+                          borderWidth: 1.5,
+                          borderColor: t.colors.accent,
+                          backgroundColor: pressed ? t.colors.accent : "transparent",
+                          opacity: isResolving ? 0.5 : 1,
+                        })}
+                      >
+                        {({ pressed }) => (
+                          <Text
+                            variant="label"
+                            color={pressed ? "#FFFFFF" : t.colors.accent}
+                          >
+                            {isResolving ? "resolving…" : "incident resolved"}
+                          </Text>
+                        )}
+                      </Pressable>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </SafeAreaView>
+      )}
 
       {Platform.OS === "web" && (
         <SafeAreaView pointerEvents="box-none" style={styles.toolbar}>
@@ -227,8 +298,25 @@ export default function MissionControlScreen() {
           )}
         </SafeAreaView>
       )}
-    </View>
+    </>
   );
+}
+
+function fmtKm(m: number): string {
+  return m < 1000 ? `${m.toFixed(0)} m` : `${(m / 1000).toFixed(2)} km`;
+}
+
+function nearestReserve(
+  lat: number,
+  lon: number,
+  reserves: { id: string; lat: number; lon: number; name: string }[],
+): { id: string; name: string; distance_m: number } | null {
+  let best: { id: string; name: string; distance_m: number } | null = null;
+  for (const r of reserves) {
+    const d = haversineM(lat, lon, r.lat, r.lon);
+    if (!best || d < best.distance_m) best = { id: r.id, name: r.name, distance_m: d };
+  }
+  return best;
 }
 
 const styles = StyleSheet.create({
@@ -246,9 +334,24 @@ const styles = StyleSheet.create({
     gap: 2,
     alignSelf: "flex-start",
   },
+  sidebar: {
+    position: "absolute",
+    top: 80, // sits below the WebNavBar
+    right: 0,
+    padding: 16,
+    alignItems: "flex-end",
+  },
+  sidebarCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+    width: 340,
+    maxHeight: 380,
+  },
   toolbar: {
     position: "absolute",
-    bottom: 0,
+    bottom: 24, // clears the maplibre attribution strip
     right: 0,
     padding: 16,
     alignItems: "flex-end",

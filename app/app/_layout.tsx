@@ -65,8 +65,7 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: palette.bg },
           }}
         >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="mission-control" options={{ headerShown: false }} />
+          <Stack.Screen name="(map)" options={{ headerShown: false }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="fire/[id]" options={{ title: "Fire details" }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />

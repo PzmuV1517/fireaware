@@ -21,6 +21,18 @@ async function request<T>(
   }
 
   const res = await fetch(`${getApiBase()}${path}`, { ...init, headers });
+
+  // 204 No Content: there's no body to parse even if Content-Type claims JSON.
+  if (res.status === 204) {
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status}`) as ApiError;
+      err.status = res.status;
+      err.body = null;
+      throw err;
+    }
+    return undefined as T;
+  }
+
   const ct = res.headers.get("content-type") ?? "";
   const body = ct.includes("application/json") ? await res.json() : await res.text();
   if (!res.ok) {
@@ -98,6 +110,16 @@ export interface FireZone {
   created_at: string;
 }
 
+export interface WaterReserve {
+  id: string;
+  lat: number;
+  lon: number;
+  name: string;
+  capacity_l: number | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export const api = {
   fires: {
     list: (bbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number }) => {
@@ -107,9 +129,11 @@ export const api = {
       return request<Fire[]>(`/api/v1/fires${qs}`, { auth: false });
     },
     detail: (id: string) => request<FireDetail>(`/api/v1/fires/${id}`, { auth: false }),
+    resolve: (id: string) =>
+      request<void>(`/api/v1/fires/${id}`, { method: "DELETE" }),
   },
   auth: {
-    register: (body: { email: string; password: string; display_name: string; role?: string }) =>
+    register: (body: { email: string; password: string; display_name: string }) =>
       request<{ access_token: string; refresh_token: string; role: string }>("/api/v1/auth/register", {
         method: "POST",
         body: JSON.stringify(body),
@@ -169,5 +193,15 @@ export const api = {
       request<FireZone>("/api/v1/fire-zones", { method: "POST", body: JSON.stringify(body) }),
     delete: (id: string) =>
       request<void>(`/api/v1/fire-zones/${id}`, { method: "DELETE" }),
+  },
+  waterReserves: {
+    list: () => request<WaterReserve[]>("/api/v1/water-reserves", { auth: false }),
+    create: (body: { lat: number; lon: number; name: string; capacity_l?: number | null }) =>
+      request<WaterReserve>("/api/v1/water-reserves", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    delete: (id: string) =>
+      request<void>(`/api/v1/water-reserves/${id}`, { method: "DELETE" }),
   },
 };

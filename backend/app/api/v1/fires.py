@@ -6,9 +6,11 @@ from shapely.geometry import Point
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_fireman
 from app.core.db import get_db
 from app.models.fire import Fire
 from app.models.report import Report
+from app.models.user import User
 from app.schemas.fire import FireDetail, FireOut
 
 router = APIRouter()
@@ -65,3 +67,18 @@ def fire_detail(fire_id: UUID, db: Session = Depends(get_db)) -> FireDetail:
     ).all()
     base = _fire_to_out(f)
     return FireDetail(**base.model_dump(), photo_urls=list(photos))
+
+
+@router.delete("/{fire_id}", status_code=204)
+def resolve_fire(
+    fire_id: UUID,
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_fireman),
+) -> None:
+    """Mark a fire as resolved. Soft-delete via is_active=false; the row stays
+    so its history (linked reports) is preserved."""
+    f = db.get(Fire, fire_id)
+    if not f:
+        raise HTTPException(status_code=404, detail="Fire not found")
+    f.is_active = False
+    db.commit()
