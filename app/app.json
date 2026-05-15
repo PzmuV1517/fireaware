@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "FireAware",
+    "slug": "fireaware",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "fireaware",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.fireaware.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FireAware uses your location and compass heading to triangulate fires from your sighting.",
+        "NSCameraUsageDescription": "FireAware uses the camera to attach a photo to your fire sighting.",
+        "NSMotionUsageDescription": "FireAware uses motion sensors to calibrate the compass before you submit a sighting."
+      }
+    },
+    "android": {
+      "package": "dev.fireaware.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F7F4EE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "name": "FireAware",
+      "shortName": "FireAware"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F4EE",
+          "dark": {
+            "backgroundColor": "#171411"
+          }
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "FireAware uses your location and compass heading to triangulate fires from your sighting."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FireAware uses the camera to attach a photo to your fire sighting."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
