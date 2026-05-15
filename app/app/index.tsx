@@ -9,6 +9,8 @@ import { bearingBetween } from "@/components/map/types";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import { Toggle } from "@/components/ui/Toggle";
+import { WebNavBar } from "@/components/ui/WebNavBar";
+import { WeatherWidget } from "@/components/ui/WeatherWidget";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useInitialMapCenter } from "@/lib/useInitialMapCenter";
@@ -20,7 +22,7 @@ export default function PublicMapScreen() {
   const t = useTheme();
   const router = useRouter();
   const qc = useQueryClient();
-  const { accessToken } = useAuth();
+  const { accessToken, role } = useAuth();
   const [showReports, setShowReports] = useState(false);
   const mapCenter = useInitialMapCenter();
 
@@ -131,38 +133,46 @@ export default function PublicMapScreen() {
       )}
 
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
-        <View
-          style={[
-            styles.headerCard,
-            { backgroundColor: t.colors.surface, borderColor: t.colors.border },
-          ]}
-        >
-          <Text variant="h2">FireAware</Text>
-          <Text variant="subtext" muted>
-            community-sighted fires, triangulated and mapped
-          </Text>
-          {Platform.OS === "web" ? (
-            <Text variant="caption" muted style={{ marginTop: t.space.xs }}>
-              Get the mobile app to submit a real sighting.
+        {Platform.OS === "web" && accessToken ? (
+          <WebNavBar currentPage="map" isFireman={role === "fireman"} />
+        ) : (
+          <View
+            style={[
+              styles.headerCard,
+              { backgroundColor: t.colors.surface, borderColor: t.colors.border },
+            ]}
+          >
+            <Text variant="h2">FireAware</Text>
+            <Text variant="subtext" muted>
+              community-sighted fires, triangulated and mapped
             </Text>
-          ) : accessToken ? (
-            <Link href="/(app)/map" asChild>
-              <Pressable style={{ marginTop: t.space.sm }}>
-                <Text variant="label" color={t.colors.accent}>
-                  Open app →
-                </Text>
-              </Pressable>
-            </Link>
-          ) : (
-            <Link href="/(auth)/login" asChild>
-              <Pressable style={{ marginTop: t.space.sm }}>
-                <Text variant="label" color={t.colors.accent}>
-                  Sign in to report →
-                </Text>
-              </Pressable>
-            </Link>
-          )}
-        </View>
+            {Platform.OS === "web" ? (
+              <Link href="/(auth)/login" asChild>
+                <Pressable style={{ marginTop: t.space.sm }}>
+                  <Text variant="label" color={t.colors.accent}>
+                    Sign in →
+                  </Text>
+                </Pressable>
+              </Link>
+            ) : accessToken ? (
+              <Link href="/(app)/map" asChild>
+                <Pressable style={{ marginTop: t.space.sm }}>
+                  <Text variant="label" color={t.colors.accent}>
+                    Open app →
+                  </Text>
+                </Pressable>
+              </Link>
+            ) : (
+              <Link href="/(auth)/login" asChild>
+                <Pressable style={{ marginTop: t.space.sm }}>
+                  <Text variant="label" color={t.colors.accent}>
+                    Sign in to report →
+                  </Text>
+                </Pressable>
+              </Link>
+            )}
+          </View>
+        )}
 
         <View style={styles.controlsRow} pointerEvents="box-none">
           <Toggle
@@ -185,6 +195,12 @@ export default function PublicMapScreen() {
           )}
         </View>
       </SafeAreaView>
+
+      {!pinMode && (
+        <SafeAreaView pointerEvents="box-none" style={styles.bottomLeft}>
+          <WeatherWidget />
+        </SafeAreaView>
+      )}
 
       {Platform.OS === "web" && pinMode && (
         <SafeAreaView pointerEvents="box-none" style={styles.bottom}>
@@ -265,6 +281,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0,
     left: 0,
+    right: 0,
+    padding: 16,
+  },
+  bottomLeft: {
+    position: "absolute",
+    bottom: 0,
     right: 0,
     padding: 16,
   },

@@ -25,7 +25,7 @@ export default function LoginScreen() {
     setError(null);
     try {
       const tokens = await api.auth.login({ email: email.trim().toLowerCase(), password });
-      await authStore.getState().setTokens(tokens.access_token, tokens.refresh_token);
+      await authStore.getState().setTokens(tokens.access_token, tokens.refresh_token, tokens.role as 'civilian' | 'fireman');
       router.replace("/(app)/map");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-in failed");

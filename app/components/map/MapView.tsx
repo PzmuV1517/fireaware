@@ -1,4 +1,4 @@
-import RNMapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import RNMapView, { Marker, Polygon, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 import { StyleSheet, View } from "react-native";
 
 import { colors } from "@/theme/tokens";
@@ -14,6 +14,7 @@ export function MapView({
   initialCenter,
   initialZoom = 6,
   onSelectFire,
+  fireZones,
 }: MapViewProps) {
   const center = initialCenter ?? { lat: 38.7223, lon: -9.1393 };
   const delta = zoomToDelta(initialZoom);
@@ -138,6 +139,16 @@ export function MapView({
             </>
           );
         })()}
+
+      {(fireZones ?? []).map((z) => (
+        <Polygon
+          key={z.id}
+          coordinates={z.coordinates.map(([lon, lat]) => ({ latitude: lat, longitude: lon }))}
+          fillColor={z.color + "30"}
+          strokeColor={z.color}
+          strokeWidth={2}
+        />
+      ))}
 
       {fires.map((f) => (
         <Marker

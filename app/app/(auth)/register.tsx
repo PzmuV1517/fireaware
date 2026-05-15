@@ -13,6 +13,7 @@ import { useTheme } from "@/theme";
 export default function RegisterScreen() {
   const t = useTheme();
   const router = useRouter();
+  const [role, setRole] = useState<'civilian' | 'fireman'>('civilian');
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,8 +28,9 @@ export default function RegisterScreen() {
         email: email.trim().toLowerCase(),
         password,
         display_name: displayName.trim(),
+        role,
       });
-      await authStore.getState().setTokens(tokens.access_token, tokens.refresh_token);
+      await authStore.getState().setTokens(tokens.access_token, tokens.refresh_token, tokens.role as 'civilian' | 'fireman');
       router.replace("/(app)/map");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-up failed");
@@ -51,6 +53,26 @@ export default function RegisterScreen() {
         </View>
 
         <View style={{ gap: t.space.md }}>
+          <View style={{ flexDirection: "row", gap: t.space.sm }}>
+            {([['civilian', 'Civilian'], ['fireman', 'Firefighter']] as const).map(([val, label]) => (
+              <Pressable
+                key={val}
+                onPress={() => setRole(val)}
+                style={{
+                  flex: 1,
+                  paddingVertical: t.space.sm,
+                  paddingHorizontal: t.space.md,
+                  borderRadius: t.radius.pill,
+                  borderWidth: 1.5,
+                  borderColor: role === val ? t.colors.accent : t.colors.border,
+                  backgroundColor: role === val ? t.colors.accent : t.colors.surface,
+                  alignItems: "center",
+                }}
+              >
+                <Text variant="label" color={role === val ? "#fff" : t.colors.ink}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
           <Input label="Display name" value={displayName} onChangeText={setDisplayName} />
           <Input
             label="Email"

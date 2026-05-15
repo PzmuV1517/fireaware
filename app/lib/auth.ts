@@ -6,6 +6,7 @@ import { create } from "zustand";
 
 const ACCESS_KEY = "fireaware.access";
 const REFRESH_KEY = "fireaware.refresh";
+const ROLE_KEY = "fireaware.role";
 
 const storage = {
   async get(key: string): Promise<string | null> {
@@ -28,27 +29,29 @@ const storage = {
 interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
+  role: 'civilian' | 'fireman' | null;
   hydrated: boolean;
   hydrate: () => Promise<void>;
-  setTokens: (access: string, refresh: string) => Promise<void>;
+  setTokens: (access: string, refresh: string, role: 'civilian' | 'fireman') => Promise<void>;
   clear: () => Promise<void>;
 }
 
 export const authStore = create<AuthState>((set) => ({
   accessToken: null,
   refreshToken: null,
+  role: null,
   hydrated: false,
   hydrate: async () => {
-    const [a, r] = await Promise.all([storage.get(ACCESS_KEY), storage.get(REFRESH_KEY)]);
-    set({ accessToken: a, refreshToken: r, hydrated: true });
+    const [a, r, role] = await Promise.all([storage.get(ACCESS_KEY), storage.get(REFRESH_KEY), storage.get(ROLE_KEY)]);
+    set({ accessToken: a, refreshToken: r, role: (role as 'civilian' | 'fireman' | null) ?? null, hydrated: true });
   },
-  setTokens: async (access, refresh) => {
-    await Promise.all([storage.set(ACCESS_KEY, access), storage.set(REFRESH_KEY, refresh)]);
-    set({ accessToken: access, refreshToken: refresh });
+  setTokens: async (access, refresh, role) => {
+    await Promise.all([storage.set(ACCESS_KEY, access), storage.set(REFRESH_KEY, refresh), storage.set(ROLE_KEY, role)]);
+    set({ accessToken: access, refreshToken: refresh, role });
   },
   clear: async () => {
-    await Promise.all([storage.del(ACCESS_KEY), storage.del(REFRESH_KEY)]);
-    set({ accessToken: null, refreshToken: null });
+    await Promise.all([storage.del(ACCESS_KEY), storage.del(REFRESH_KEY), storage.del(ROLE_KEY)]);
+    set({ accessToken: null, refreshToken: null, role: null });
   },
 }));
 
@@ -57,11 +60,11 @@ export function useAuth() {
   // hook-order issues
   const [state, setState] = useState(() => {
     const s = authStore.getState();
-    return { accessToken: s.accessToken, refreshToken: s.refreshToken, hydrated: s.hydrated };
+    return { accessToken: s.accessToken, refreshToken: s.refreshToken, role: s.role, hydrated: s.hydrated };
   });
   useEffect(() => {
     return authStore.subscribe((s) =>
-      setState({ accessToken: s.accessToken, refreshToken: s.refreshToken, hydrated: s.hydrated }),
+      setState({ accessToken: s.accessToken, refreshToken: s.refreshToken, role: s.role, hydrated: s.hydrated }),
     );
   }, []);
   return state;

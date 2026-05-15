@@ -24,11 +24,16 @@ async function request<T>(
   const ct = res.headers.get("content-type") ?? "";
   const body = ct.includes("application/json") ? await res.json() : await res.text();
   if (!res.ok) {
-    const err = new Error(
-      typeof body === "object" && body && "detail" in body
-        ? String((body as { detail: unknown }).detail)
-        : `HTTP ${res.status}`,
-    ) as ApiError;
+    let message = `HTTP ${res.status}`;
+    if (typeof body === "object" && body && "detail" in body) {
+      const detail = (body as { detail: unknown }).detail;
+      if (Array.isArray(detail)) {
+        message = detail.map((e: { msg?: string }) => e.msg ?? String(e)).join("; ");
+      } else {
+        message = String(detail);
+      }
+    }
+    const err = new Error(message) as ApiError;
     err.status = res.status;
     err.body = body;
     throw err;
@@ -76,6 +81,23 @@ export interface PublicReport {
   status: string;
 }
 
+export interface Weather {
+  temperature: number;
+  wind_speed: number;
+  wind_direction_deg: number;
+  wind_direction: string;
+}
+
+export interface FireZone {
+  id: string;
+  created_by: string;
+  coordinates: [number, number][];
+  label: string | null;
+  color: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export const api = {
   fires: {
     list: (bbox?: { minLat: number; maxLat: number; minLon: number; maxLon: number }) => {
@@ -87,14 +109,14 @@ export const api = {
     detail: (id: string) => request<FireDetail>(`/api/v1/fires/${id}`, { auth: false }),
   },
   auth: {
-    register: (body: { email: string; password: string; display_name: string }) =>
-      request<{ access_token: string; refresh_token: string }>("/api/v1/auth/register", {
+    register: (body: { email: string; password: string; display_name: string; role?: string }) =>
+      request<{ access_token: string; refresh_token: string; role: string }>("/api/v1/auth/register", {
         method: "POST",
         body: JSON.stringify(body),
         auth: false,
       }),
     login: (body: { email: string; password: string }) =>
-      request<{ access_token: string; refresh_token: string }>("/api/v1/auth/login", {
+      request<{ access_token: string; refresh_token: string; role: string }>("/api/v1/auth/login", {
         method: "POST",
         body: JSON.stringify(body),
         auth: false,
@@ -136,5 +158,16 @@ export const api = {
           auth: false,
         },
       ),
+  },
+  weather: {
+    get: (lat: number, lon: number) =>
+      request<Weather>(`/api/v1/weather?lat=${lat}&lon=${lon}`, { auth: false }),
+  },
+  fireZones: {
+    list: () => request<FireZone[]>("/api/v1/fire-zones", { auth: false }),
+    create: (body: { coordinates: [number, number][]; label?: string | null; color?: string }) =>
+      request<FireZone>("/api/v1/fire-zones", { method: "POST", body: JSON.stringify(body) }),
+    delete: (id: string) =>
+      request<void>(`/api/v1/fire-zones/${id}`, { method: "DELETE" }),
   },
 };

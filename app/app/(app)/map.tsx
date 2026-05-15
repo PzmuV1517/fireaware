@@ -8,7 +8,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MapView } from "@/components/map/MapView";
 import { Text } from "@/components/ui/Text";
 import { Toggle } from "@/components/ui/Toggle";
+import { WeatherWidget } from "@/components/ui/WeatherWidget";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useInitialMapCenter } from "@/lib/useInitialMapCenter";
 import { useTheme } from "@/theme";
 
@@ -16,6 +18,7 @@ export default function AppMap() {
   const t = useTheme();
   const router = useRouter();
   const qc = useQueryClient();
+  const { role } = useAuth();
   const [showReports, setShowReports] = useState(false);
   const mapCenter = useInitialMapCenter();
 
@@ -72,6 +75,17 @@ export default function AppMap() {
           }}
         />
         <View style={{ flex: 1 }} />
+        {role === "fireman" && (
+          <Pressable
+            onPress={() => router.push("/mission-control")}
+            style={[
+              styles.gearButton,
+              { backgroundColor: t.colors.accent, borderColor: t.colors.accent },
+            ]}
+          >
+            <Ionicons name="shield-outline" size={20} color="#FFFFFF" />
+          </Pressable>
+        )}
         <Pressable
           accessibilityLabel="Open settings"
           onPress={() => router.push("/(app)/settings")}
@@ -92,6 +106,9 @@ export default function AppMap() {
             />
           )}
         </Pressable>
+      </SafeAreaView>
+      <SafeAreaView pointerEvents="box-none" style={styles.bottomLeft}>
+        <WeatherWidget />
       </SafeAreaView>
       <SafeAreaView pointerEvents="box-none" style={styles.bottomBar}>
         <Link href="/(app)/report" asChild>
@@ -140,6 +157,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,
     elevation: 4,
+  },
+  bottomLeft: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    padding: 16,
   },
   bottomBar: {
     position: "absolute",

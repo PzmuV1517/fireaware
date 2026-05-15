@@ -6,7 +6,7 @@ import { StyleSheet, View } from "react-native";
 import { colors } from "@/theme/tokens";
 
 import { BEARING_LINE_M, bearingBetween, offsetPoint } from "./types";
-import type { FireMarker, MapViewProps, ReportMarker } from "./types";
+import type { FireMarker, FireZoneMarker, MapViewProps, ReportMarker } from "./types";
 
 const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 const LINES_SOURCE = "fa-report-lines";
@@ -16,6 +16,12 @@ const DOTS_SOURCE = "fa-report-dots";
 const DOTS_LAYER = "fa-report-dots";
 const PIN_LINE_SOURCE = "fa-pin-line";
 const PIN_LINE_LAYER = "fa-pin-line";
+const ZONES_SOURCE = "fa-fire-zones";
+const ZONES_FILL_LAYER = "fa-fire-zones-fill";
+const ZONES_LINE_LAYER = "fa-fire-zones-line";
+const DRAWING_SOURCE = "fa-drawing";
+const DRAWING_LINE_LAYER = "fa-drawing-line";
+const DRAWING_DOTS_LAYER = "fa-drawing-dots";
 
 export function MapView({
   fires,
@@ -26,6 +32,9 @@ export function MapView({
   initialCenter,
   initialZoom = 6,
   onSelectFire,
+  fireZones,
+  drawingPoints,
+  onMapClick,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -36,6 +45,8 @@ export function MapView({
   onSelectRef.current = onSelectFire;
   const onMapClickRef = useRef(pin?.onMapClick);
   onMapClickRef.current = pin?.onMapClick;
+  const generalClickRef = useRef(onMapClick);
+  generalClickRef.current = onMapClick;
   // bumps each time the map (re)initialises its style/sources — every sync
   // effect depends on this so they re-apply current data after a tab focus or
   // a maplibre style reload.
@@ -54,14 +65,14 @@ export function MapView({
       zoom: initialZoom,
       attributionControl: { compact: true },
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-left");
     map.addControl(
       new maplibregl.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
         trackUserLocation: true,
         showUserLocation: true,
       }),
-      "top-right",
+      "bottom-left",
     );
     mapRef.current = map;
 
@@ -121,6 +132,32 @@ export function MapView({
           paint: { "line-color": colors.accent, "line-width": 2.5 },
         });
       }
+      // fire zones fill + line
+      if (!map.getSource(ZONES_SOURCE)) {
+        map.addSource(ZONES_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: ZONES_FILL_LAYER, type: "fill", source: ZONES_SOURCE,
+          paint: { "fill-color": ["get", "color"], "fill-opacity": 0.18 },
+        });
+        map.addLayer({
+          id: ZONES_LINE_LAYER, type: "line", source: ZONES_SOURCE,
+          paint: { "line-color": ["get", "color"], "line-width": 2, "line-opacity": 0.9 },
+        });
+      }
+      // drawing preview
+      if (!map.getSource(DRAWING_SOURCE)) {
+        map.addSource(DRAWING_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: DRAWING_LINE_LAYER, type: "line", source: DRAWING_SOURCE,
+          filter: ["==", "$type", "LineString"],
+          paint: { "line-color": "#C9532A", "line-width": 2, "line-dasharray": [3, 2] },
+        });
+        map.addLayer({
+          id: DRAWING_DOTS_LAYER, type: "circle", source: DRAWING_SOURCE,
+          filter: ["==", "$type", "Point"],
+          paint: { "circle-radius": 5, "circle-color": "#C9532A", "circle-stroke-color": "#fff", "circle-stroke-width": 2 },
+        });
+      }
       setMapEpoch((e) => e + 1);
     };
 
@@ -130,9 +167,10 @@ export function MapView({
     map.on("style.load", ensureLayers);
 
     map.on("click", (e) => {
-      const handler = onMapClickRef.current;
-      if (!handler) return;
-      handler({ lat: e.lngLat.lat, lon: e.lngLat.lng });
+      const coord = { lat: e.lngLat.lat, lon: e.lngLat.lng };
+      const pinHandler = onMapClickRef.current;
+      if (pinHandler) pinHandler(coord);
+      generalClickRef.current?.(coord);
     });
 
     const onVisibility = () => {
@@ -255,6 +293,38 @@ export function MapView({
     else map.once("idle", apply);
   }, [reports, showReports, mapEpoch, redrawTick]);
 
+  // sync fire zones
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource(ZONES_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(fireZonesToFC(fireZones ?? []));
+    };
+    if (map.isStyleLoaded() && map.getSource(ZONES_SOURCE)) apply();
+    else map.once("idle", apply);
+  }, [fireZones, mapEpoch, redrawTick]);
+
+  // sync drawing preview
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource(DRAWING_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(drawingToFC(drawingPoints ?? []));
+    };
+    if (map.isStyleLoaded() && map.getSource(DRAWING_SOURCE)) apply();
+    else map.once("idle", apply);
+  }, [drawingPoints, mapEpoch]);
+
+  // cursor: crosshair when onMapClick is provided (pin cursor takes priority)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const canvas = map.getCanvas();
+    if (!pin) canvas.style.cursor = onMapClick ? "crosshair" : "";
+  }, [onMapClick, pin, mapEpoch]);
+
   return (
     <View style={StyleSheet.absoluteFillObject}>
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
@@ -358,4 +428,38 @@ function reportsToDotFC(reports: ReportMarker[]) {
       geometry: { type: "Point" as const, coordinates: [r.lon, r.lat] },
     })),
   };
+}
+
+function fireZonesToFC(zones: FireZoneMarker[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: zones.map((z) => ({
+      type: "Feature" as const,
+      properties: { id: z.id, color: z.color, label: z.label ?? "" },
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [[...z.coordinates, z.coordinates[0]]],
+      },
+    })),
+  };
+}
+
+function drawingToFC(pts: [number, number][]) {
+  type Feat = { type: "Feature"; properties: Record<string, never>; geometry: { type: "LineString"; coordinates: [number, number][] } | { type: "Point"; coordinates: [number, number] } };
+  const features: Feat[] = [];
+  if (pts.length >= 2) {
+    features.push({
+      type: "Feature" as const,
+      properties: {},
+      geometry: { type: "LineString" as const, coordinates: pts },
+    });
+  }
+  pts.forEach((pt) => {
+    features.push({
+      type: "Feature" as const,
+      properties: {},
+      geometry: { type: "Point" as const, coordinates: pt },
+    });
+  });
+  return { type: "FeatureCollection" as const, features };
 }

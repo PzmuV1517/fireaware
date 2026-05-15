@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     proximity_eps_m: float = 300.0
     proximity_min_samples: int = 3
 
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

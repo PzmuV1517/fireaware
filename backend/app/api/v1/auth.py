@@ -16,10 +16,11 @@ from app.schemas.auth import LoginRequest, RefreshRequest, RegisterRequest, Toke
 router = APIRouter()
 
 
-def _issue_tokens(user_id) -> TokenPair:
+def _issue_tokens(user: User) -> TokenPair:
     return TokenPair(
-        access_token=create_access_token(user_id),
-        refresh_token=create_refresh_token(user_id),
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
+        role=user.role,
     )
 
 
@@ -32,11 +33,12 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)) -> TokenPair:
         email=body.email.lower(),
         password_hash=hash_password(body.password),
         display_name=body.display_name,
+        role=body.role,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    return _issue_tokens(user.id)
+    return _issue_tokens(user)
 
 
 @router.post("/login", response_model=TokenPair)
@@ -44,7 +46,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenPair:
     user = db.scalar(select(User).where(User.email == body.email.lower()))
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    return _issue_tokens(user.id)
+    return _issue_tokens(user)
 
 
 @router.post("/refresh", response_model=TokenPair)
@@ -55,4 +57,4 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)) -> TokenPair:
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    return _issue_tokens(user.id)
+    return _issue_tokens(user)

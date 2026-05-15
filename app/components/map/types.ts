@@ -20,6 +20,13 @@ export interface PinOverlay {
   onMapClick: (coord: { lat: number; lon: number }) => void;
 }
 
+export interface FireZoneMarker {
+  id: string;
+  coordinates: [number, number][];  // [lon, lat] pairs
+  label?: string | null;
+  color: string;
+}
+
 export interface MapViewProps {
   fires: FireMarker[];
   reports?: ReportMarker[];
@@ -33,6 +40,9 @@ export interface MapViewProps {
   initialZoom?: number;
   onSelectFire?: (id: string) => void;
   onLongPress?: (lat: number, lon: number) => void;
+  fireZones?: FireZoneMarker[];
+  drawingPoints?: [number, number][];  // live polygon vertices [lon, lat], only used on web
+  onMapClick?: (coord: { lat: number; lon: number }) => void;
 }
 
 const EARTH_R = 6_371_000;
