@@ -18,8 +18,10 @@ export default function Capture() {
   const cameraRef = useRef<CameraView | null>(null);
   const [heading, setHeading] = useState<number | null>(draft.bearingDeg);
   const [busy, setBusy] = useState(false);
+  const pinMode = draft.pinDrop;
 
   useEffect(() => {
+    if (pinMode) return;
     let sub: Location.LocationSubscription | null = null;
     (async () => {
       sub = await Location.watchHeadingAsync((h) => {
@@ -27,7 +29,7 @@ export default function Capture() {
       });
     })();
     return () => sub?.remove();
-  }, []);
+  }, [pinMode]);
 
   if (!permission) {
     return (
@@ -57,17 +59,26 @@ export default function Capture() {
         skipProcessing: false,
       });
       if (!photo) return;
-      // capture position again at shutter
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      draft.set({
-        photoUri: photo.uri,
-        photoMime: "image/jpeg",
-        bearingDeg: heading ?? draft.bearingDeg,
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude,
-        gpsAccM: pos.coords.accuracy ?? draft.gpsAccM,
-        takenAt: new Date().toISOString(),
-      });
+      if (pinMode) {
+        // pin-drop: keep the lat/lon/bearing the user explicitly placed
+        draft.set({
+          photoUri: photo.uri,
+          photoMime: "image/jpeg",
+          takenAt: new Date().toISOString(),
+        });
+      } else {
+        // capture position again at shutter for the live-sensor flow
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        draft.set({
+          photoUri: photo.uri,
+          photoMime: "image/jpeg",
+          bearingDeg: heading ?? draft.bearingDeg,
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          gpsAccM: pos.coords.accuracy ?? draft.gpsAccM,
+          takenAt: new Date().toISOString(),
+        });
+      }
       router.push("/(app)/report/confirm");
     } finally {
       setBusy(false);
@@ -92,7 +103,7 @@ export default function Capture() {
           ]}
         >
           <Text variant="label" color="#FFFFFFCC">
-            bearing
+            {pinMode ? "pinned bearing" : "bearing"}
           </Text>
           <Text variant="mono" color="#FFFFFF" style={{ fontSize: 20 }}>
             {heading != null ? `${heading.toFixed(0)}°` : "—"}

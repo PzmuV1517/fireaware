@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -14,6 +14,7 @@ import { useTheme } from "@/theme";
 export default function AppMap() {
   const t = useTheme();
   const router = useRouter();
+  const qc = useQueryClient();
   const [showReports, setShowReports] = useState(false);
   const mapCenter = useInitialMapCenter();
 
@@ -21,12 +22,18 @@ export default function AppMap() {
     queryKey: ["fires", "all"],
     queryFn: () => api.fires.list(),
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    placeholderData: keepPreviousData,
   });
 
   const { data: reports } = useQuery({
     queryKey: ["reports", "public"],
     queryFn: () => api.reports.list({ sinceMin: 240 }),
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: "always",
+    staleTime: 0,
+    placeholderData: keepPreviousData,
     enabled: showReports,
   });
 
@@ -58,7 +65,10 @@ export default function AppMap() {
         <Toggle
           label={showReports ? "Reports on" : "Show reports"}
           value={showReports}
-          onChange={setShowReports}
+          onChange={(v) => {
+            setShowReports(v);
+            if (v) qc.refetchQueries({ queryKey: ["reports", "public"] });
+          }}
         />
       </SafeAreaView>
       <SafeAreaView pointerEvents="box-none" style={styles.bottomBar}>

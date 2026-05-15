@@ -9,6 +9,9 @@ export interface ReportDraft {
   takenAt: string | null;
   photoUri: string | null;
   photoMime: string | null;
+  /** If true, lat/lon/bearing came from a user-dropped pin and the live
+   * sensors should not overwrite them at capture time. */
+  pinDrop: boolean;
 }
 
 interface DraftStore extends ReportDraft {
@@ -25,6 +28,7 @@ const empty: ReportDraft = {
   takenAt: null,
   photoUri: null,
   photoMime: null,
+  pinDrop: false,
 };
 
 export const useReportDraft = create<DraftStore>((set) => ({

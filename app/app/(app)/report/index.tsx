@@ -59,14 +59,28 @@ export default function ReportIntro() {
         ))}
       </View>
 
-      <Button
-        label="Begin calibration"
-        fullWidth
-        onPress={() => {
-          reset();
-          router.push("/(app)/report/calibrate");
-        }}
-      />
+      <View style={{ gap: t.space.sm }}>
+        <Button
+          label="Begin calibration"
+          fullWidth
+          onPress={() => {
+            reset();
+            router.push("/(app)/report/calibrate");
+          }}
+        />
+        <Button
+          label="Drop a pin (demo)"
+          variant="secondary"
+          fullWidth
+          onPress={() => {
+            reset();
+            router.push("/(app)/report/pin");
+          }}
+        />
+        <Text variant="subtext" muted align="center">
+          demo mode skips GPS & compass calibration — useful for presentations
+        </Text>
+      </View>
     </ScrollView>
   );
 }

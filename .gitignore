@@ -40,3 +40,5 @@ yarn-error.log*
 postgres-data/
 minio-data/
 uploads/
+/trainDataset/FireAware-yolov11-smoke-fire-detection.yolov11/
+/trainDataset/runs/

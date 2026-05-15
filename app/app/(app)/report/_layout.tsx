@@ -16,6 +16,7 @@ export default function ReportLayout() {
     >
       <Stack.Screen name="index" options={{ title: "Report a fire" }} />
       <Stack.Screen name="calibrate" options={{ title: "Calibrate" }} />
+      <Stack.Screen name="pin" options={{ title: "Drop a pin" }} />
       <Stack.Screen name="capture" options={{ title: "Capture" }} />
       <Stack.Screen name="confirm" options={{ title: "Confirm" }} />
     </Stack>

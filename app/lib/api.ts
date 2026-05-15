@@ -121,5 +121,20 @@ export const api = {
       const qs = opts?.sinceMin ? `?since_min=${opts.sinceMin}` : "";
       return request<PublicReport[]>(`/api/v1/reports${qs}`, { auth: false });
     },
+    submitDemo: (body: {
+      lat: number;
+      lon: number;
+      bearing_deg: number;
+      bearing_acc_deg?: number;
+      gps_acc_m?: number;
+    }) =>
+      request<{ report: Report; fire_id: string | null; matched: boolean }>(
+        "/api/v1/reports/demo",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+          auth: false,
+        },
+      ),
   },
 };

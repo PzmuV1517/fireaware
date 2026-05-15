@@ -46,3 +46,13 @@ class ReportPublicOut(BaseModel):
     taken_at: datetime
     fire_id: UUID | None
     status: str
+
+
+class DemoReportCreate(BaseModel):
+    """Body for the unauth web-demo report endpoint. No photo."""
+
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    bearing_deg: float = Field(ge=0, lt=360)
+    bearing_acc_deg: float = Field(gt=0, le=180, default=1.5)
+    gps_acc_m: float = Field(gt=0, default=1.0)

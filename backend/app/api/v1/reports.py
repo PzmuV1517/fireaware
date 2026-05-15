@@ -12,7 +12,14 @@ from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.models.report import Report
 from app.models.user import User
-from app.schemas.report import ReportCreate, ReportOut, ReportPublicOut, ReportSubmitResponse
+from app.core.security import hash_password
+from app.schemas.report import (
+    DemoReportCreate,
+    ReportCreate,
+    ReportOut,
+    ReportPublicOut,
+    ReportSubmitResponse,
+)
 from app.services.storage import upload_photo
 from app.services.triangulation import recompute_for_region
 
@@ -87,6 +94,53 @@ def _report_to_public(r: Report) -> ReportPublicOut:
         taken_at=r.taken_at,
         fire_id=r.fire_id,
         status=r.status,
+    )
+
+
+def _get_or_create_demo_user(db: Session) -> User:
+    user = db.scalar(select(User).where(User.email == "web-demo@fireaware.dev"))
+    if user:
+        return user
+    user = User(
+        email="web-demo@fireaware.dev",
+        password_hash=hash_password("locked-no-login"),
+        display_name="Web demo",
+        is_verified=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.post("/demo", response_model=ReportSubmitResponse, status_code=201)
+def create_demo_report(
+    body: DemoReportCreate,
+    db: Session = Depends(get_db),
+) -> ReportSubmitResponse:
+    """Auth-free web-demo endpoint. Drops a pin-derived report onto the map
+    without requiring a login or a photo. Triangulation runs as usual."""
+    user = _get_or_create_demo_user(db)
+    report = Report(
+        user_id=user.id,
+        location=f"SRID=4326;POINT({body.lon} {body.lat})",
+        bearing_deg=body.bearing_deg,
+        bearing_acc_deg=body.bearing_acc_deg,
+        gps_acc_m=body.gps_acc_m,
+        photo_url=None,
+        taken_at=datetime.now(UTC),
+        device_meta={"web_demo": True},
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    recompute_for_region(db, center_lat=body.lat, center_lon=body.lon)
+    db.refresh(report)
+    return ReportSubmitResponse(
+        report=_report_to_out(report),
+        fire_id=report.fire_id,
+        matched=report.fire_id is not None,
     )
 
 

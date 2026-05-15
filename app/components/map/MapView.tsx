@@ -3,13 +3,14 @@ import { StyleSheet, View } from "react-native";
 
 import { colors } from "@/theme/tokens";
 
-import { BEARING_LINE_M, offsetPoint } from "./types";
+import { BEARING_LINE_M, bearingBetween, offsetPoint } from "./types";
 import type { MapViewProps } from "./types";
 
 export function MapView({
   fires,
   reports,
   showReports,
+  pin,
   initialCenter,
   initialZoom = 6,
   onSelectFire,
@@ -28,6 +29,11 @@ export function MapView({
         longitude: center.lon,
         latitudeDelta: delta,
         longitudeDelta: delta,
+      }}
+      onPress={(e) => {
+        if (!pin) return;
+        const { latitude, longitude } = e.nativeEvent.coordinate;
+        pin.onMapClick({ lat: latitude, lon: longitude });
       }}
     >
       {showReports &&
@@ -68,6 +74,48 @@ export function MapView({
             />
           </Marker>
         ))}
+
+      {pin?.observer && pin?.target && (() => {
+        const brg = bearingBetween(
+          pin.observer.lat,
+          pin.observer.lon,
+          pin.target.lat,
+          pin.target.lon,
+        );
+        const end = offsetPoint(pin.observer.lat, pin.observer.lon, brg, BEARING_LINE_M);
+        return (
+          <Polyline
+            key="pin-line"
+            coordinates={[
+              { latitude: pin.observer.lat, longitude: pin.observer.lon },
+              { latitude: end.lat, longitude: end.lon },
+            ]}
+            strokeColor={colors.accent}
+            strokeWidth={2.5}
+          />
+        );
+      })()}
+      {pin?.observer && (
+        <Marker
+          key="pin-observer"
+          identifier="pin-observer"
+          coordinate={{ latitude: pin.observer.lat, longitude: pin.observer.lon }}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges={false}
+          zIndex={20}
+        >
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 999,
+              backgroundColor: colors.accent,
+              borderWidth: 3,
+              borderColor: "#FFFFFF",
+            }}
+          />
+        </Marker>
+      )}
 
       {fires.map((f) => (
         <Marker

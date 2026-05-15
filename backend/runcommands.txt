@@ -1,2 +1,5 @@
 uvicorn app.main:app --reload --host 0.0.0.0
 npx expo start
+python train_yolov11.py --size m --epochs 100
+(n, s, m, l, x)
+python monitor_camera.py --weights /path/to/best.pt

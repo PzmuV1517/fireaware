@@ -14,10 +14,21 @@ export interface ReportMarker {
   matched: boolean;
 }
 
+export interface PinOverlay {
+  observer: { lat: number; lon: number } | null;
+  target: { lat: number; lon: number } | null;
+  onMapClick: (coord: { lat: number; lon: number }) => void;
+}
+
 export interface MapViewProps {
   fires: FireMarker[];
   reports?: ReportMarker[];
   showReports?: boolean;
+  pin?: PinOverlay;
+  /** Bumping this forces all sync effects to re-apply data. Use after
+   * actions whose new data might be structurally shared by React Query and
+   * therefore wouldn't otherwise re-trigger effects. */
+  redrawTick?: number;
   initialCenter?: { lat: number; lon: number };
   initialZoom?: number;
   onSelectFire?: (id: string) => void;
@@ -48,3 +59,18 @@ export function offsetPoint(
 }
 
 export const BEARING_LINE_M = 3000;
+
+/** Initial-bearing from p1 to p2 along the great circle, in degrees [0, 360). */
+export function bearingBetween(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const dLam = ((lon2 - lon1) * Math.PI) / 180;
+  const y = Math.sin(dLam) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLam);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
