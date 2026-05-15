@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import { useEffect, useState } from "react";
 import { Platform } from "react-native";
 import { create } from "zustand";
 
@@ -52,9 +53,24 @@ export const authStore = create<AuthState>((set) => ({
 }));
 
 export function useAuth() {
-  return authStore();
+  // imperative subscription — sidesteps zustand v5 + React 19 strict-mode
+  // hook-order issues
+  const [state, setState] = useState(() => {
+    const s = authStore.getState();
+    return { accessToken: s.accessToken, refreshToken: s.refreshToken, hydrated: s.hydrated };
+  });
+  useEffect(() => {
+    return authStore.subscribe((s) =>
+      setState({ accessToken: s.accessToken, refreshToken: s.refreshToken, hydrated: s.hydrated }),
+    );
+  }, []);
+  return state;
 }
 
 export function useIsSignedIn() {
-  return authStore((s) => Boolean(s.accessToken));
+  const [signedIn, setSignedIn] = useState(() => Boolean(authStore.getState().accessToken));
+  useEffect(() => {
+    return authStore.subscribe((s) => setSignedIn(Boolean(s.accessToken)));
+  }, []);
+  return signedIn;
 }

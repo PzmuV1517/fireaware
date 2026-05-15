@@ -15,26 +15,28 @@ export function Toggle({ label, value, onChange }: Props) {
   return (
     <Pressable
       onPress={() => onChange(!value)}
+      android_ripple={{ color: t.colors.accent }}
       style={({ pressed }) => ({
         flexDirection: "row",
         alignItems: "center",
         gap: t.space.sm,
-        backgroundColor: value ? t.colors.ink : t.colors.surface,
-        borderColor: value ? t.colors.ink : t.colors.border,
+        backgroundColor: pressed ? t.colors.accent : value ? t.colors.ink : t.colors.surface,
+        borderColor: pressed ? t.colors.accent : value ? t.colors.ink : t.colors.border,
         borderWidth: 1,
         paddingVertical: t.space.sm,
         paddingHorizontal: t.space.md,
         borderRadius: t.radius.pill,
-        opacity: pressed ? 0.85 : 1,
       })}
     >
-      <Text
-        variant="label"
-        color={value ? "#FFFFFF" : t.colors.ink}
-        style={{ letterSpacing: 0.8 }}
-      >
-        {label}
-      </Text>
+      {({ pressed }) => (
+        <Text
+          variant="label"
+          color={pressed || value ? "#FFFFFF" : t.colors.ink}
+          style={{ letterSpacing: 0.8 }}
+        >
+          {label}
+        </Text>
+      )}
     </Pressable>
   );
 }

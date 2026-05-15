@@ -72,24 +72,26 @@ export default function AppMap() {
           }}
         />
         <View style={{ flex: 1 }} />
-        <Link href="/(app)/settings" asChild>
-          <Pressable
-            accessibilityLabel="Open settings"
-            style={({ pressed }) => ({
-              backgroundColor: t.colors.surface,
-              borderColor: t.colors.border,
-              borderWidth: 1,
-              width: 40,
-              height: 40,
-              borderRadius: 999,
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <Ionicons name="settings-outline" size={20} color={t.colors.ink} />
-          </Pressable>
-        </Link>
+        <Pressable
+          accessibilityLabel="Open settings"
+          onPress={() => router.push("/(app)/settings")}
+          android_ripple={{ color: t.colors.accent, borderless: true }}
+          style={({ pressed }) => [
+            styles.gearButton,
+            {
+              backgroundColor: pressed ? t.colors.accent : t.colors.surface,
+              borderColor: pressed ? t.colors.accent : t.colors.border,
+            },
+          ]}
+        >
+          {({ pressed }) => (
+            <Ionicons
+              name="settings-outline"
+              size={22}
+              color={pressed ? "#FFFFFF" : t.colors.ink}
+            />
+          )}
+        </Pressable>
       </SafeAreaView>
       <SafeAreaView pointerEvents="box-none" style={styles.bottomBar}>
         <Link href="/(app)/report" asChild>
@@ -125,6 +127,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  gearButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 4,
   },
   bottomBar: {
     position: "absolute",

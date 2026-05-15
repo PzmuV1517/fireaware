@@ -19,23 +19,31 @@ export default function PinDrop() {
   const start = useInitialMapCenter();
 
   const [observer, setObserver] = useState<LatLon | null>(null);
-  const [target, setTarget] = useState<LatLon | null>(null);
+  /** Last position the user dragged/tapped to — drives the bearing direction. */
+  const [aim, setAim] = useState<LatLon | null>(null);
 
   const bearing =
-    observer && target ? bearingBetween(observer.lat, observer.lon, target.lat, target.lon) : null;
+    observer && aim ? bearingBetween(observer.lat, observer.lon, aim.lat, aim.lon) : null;
 
   const handleTap = (coord: LatLon) => {
-    if (!observer) setObserver(coord);
-    else setTarget(coord); // first or subsequent target tap
+    if (!observer) {
+      setObserver(coord);
+    } else {
+      setAim(coord);
+    }
+  };
+
+  const handlePan = (coord: LatLon) => {
+    if (observer) setAim(coord);
   };
 
   const reset = () => {
     setObserver(null);
-    setTarget(null);
+    setAim(null);
   };
 
   const advance = () => {
-    if (!observer || !target || bearing == null) return;
+    if (!observer || !aim || bearing == null) return;
     draft.set({
       lat: observer.lat,
       lon: observer.lon,
@@ -49,9 +57,9 @@ export default function PinDrop() {
 
   const instruction = !observer
     ? "Tap the map where you’re standing"
-    : !target
-      ? "Tap toward what you’re seeing"
-      : "Tap again to refine the target, or continue";
+    : !aim
+      ? "Drag your finger to aim — the line follows you"
+      : "Drag or tap to refine, then continue";
 
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
@@ -63,8 +71,9 @@ export default function PinDrop() {
             delta: 360 / Math.pow(2, start.zoom),
           }}
           observer={observer}
-          target={target}
+          aim={aim}
           onTap={handleTap}
+          onPan={handlePan}
         />
       )}
 
@@ -96,7 +105,7 @@ export default function PinDrop() {
         <View style={{ flexDirection: "row", gap: t.space.sm }}>
           <Pressable
             onPress={reset}
-            disabled={!observer && !target}
+            disabled={!observer && !aim}
             style={{
               backgroundColor: t.colors.surface,
               borderColor: t.colors.border,
@@ -104,7 +113,7 @@ export default function PinDrop() {
               paddingHorizontal: t.space.lg,
               paddingVertical: t.space.md,
               borderRadius: t.radius.pill,
-              opacity: !observer && !target ? 0.4 : 1,
+              opacity: !observer && !aim ? 0.4 : 1,
             }}
           >
             <Text variant="label">reset</Text>
@@ -113,7 +122,7 @@ export default function PinDrop() {
             <Button
               label="Take photo →"
               fullWidth
-              disabled={!observer || !target}
+              disabled={!observer || !aim}
               onPress={advance}
             />
           </View>

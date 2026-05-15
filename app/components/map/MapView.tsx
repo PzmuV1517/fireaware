@@ -54,26 +54,37 @@ export function MapView({
         })}
 
       {showReports &&
-        (reports ?? []).map((r) => (
-          <Marker
-            key={`rep-${r.id}`}
-            identifier={`rep-${r.id}`}
-            coordinate={{ latitude: r.lat, longitude: r.lon }}
-            anchor={{ x: 0.5, y: 0.5 }}
-            tracksViewChanges={false}
-          >
-            <View
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                backgroundColor: r.matched ? colors.accent : "#FFFFFF",
-                borderWidth: 1.5,
-                borderColor: r.matched ? "#FFFFFF" : colors.inkMuted,
-              }}
-            />
-          </Marker>
-        ))}
+        (reports ?? []).flatMap((r) => {
+          // draw the dot as a 1-metre line with round caps — this guarantees
+          // it lands exactly on the coordinate where the bearing line starts,
+          // unlike react-native-maps Markers with custom child views which
+          // anchor inconsistently on Android.
+          const tip = offsetPoint(r.lat, r.lon, r.bearingDeg, 0.1);
+          return [
+            <Polyline
+              key={`rep-bg-${r.id}`}
+              coordinates={[
+                { latitude: r.lat, longitude: r.lon },
+                { latitude: tip.lat, longitude: tip.lon },
+              ]}
+              strokeColor={r.matched ? "#FFFFFF" : colors.inkMuted}
+              strokeWidth={14}
+              lineCap="round"
+              zIndex={5}
+            />,
+            <Polyline
+              key={`rep-fg-${r.id}`}
+              coordinates={[
+                { latitude: r.lat, longitude: r.lon },
+                { latitude: tip.lat, longitude: tip.lon },
+              ]}
+              strokeColor={r.matched ? colors.accent : "#FFFFFF"}
+              strokeWidth={10}
+              lineCap="round"
+              zIndex={6}
+            />,
+          ];
+        })}
 
       {pin?.observer && pin?.target && (() => {
         const brg = bearingBetween(
@@ -95,27 +106,38 @@ export function MapView({
           />
         );
       })()}
-      {pin?.observer && (
-        <Marker
-          key="pin-observer"
-          identifier="pin-observer"
-          coordinate={{ latitude: pin.observer.lat, longitude: pin.observer.lon }}
-          anchor={{ x: 0.5, y: 0.5 }}
-          tracksViewChanges={false}
-          zIndex={20}
-        >
-          <View
-            style={{
-              width: 18,
-              height: 18,
-              borderRadius: 999,
-              backgroundColor: colors.accent,
-              borderWidth: 3,
-              borderColor: "#FFFFFF",
-            }}
-          />
-        </Marker>
-      )}
+      {pin?.observer &&
+        (() => {
+          // observer dot as a 1m fat polyline so it lands exactly on the pinned
+          // coordinate, regardless of marker-anchor quirks on Android
+          const tip = offsetPoint(pin.observer.lat, pin.observer.lon, 0, 0.1);
+          return (
+            <>
+              <Polyline
+                key="pin-obs-bg"
+                coordinates={[
+                  { latitude: pin.observer.lat, longitude: pin.observer.lon },
+                  { latitude: tip.lat, longitude: tip.lon },
+                ]}
+                strokeColor="#FFFFFF"
+                strokeWidth={22}
+                lineCap="round"
+                zIndex={20}
+              />
+              <Polyline
+                key="pin-obs-fg"
+                coordinates={[
+                  { latitude: pin.observer.lat, longitude: pin.observer.lon },
+                  { latitude: tip.lat, longitude: tip.lon },
+                ]}
+                strokeColor={colors.accent}
+                strokeWidth={16}
+                lineCap="round"
+                zIndex={21}
+              />
+            </>
+          );
+        })()}
 
       {fires.map((f) => (
         <Marker

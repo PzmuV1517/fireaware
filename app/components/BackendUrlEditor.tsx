@@ -14,9 +14,22 @@ interface Props {
 
 export function BackendUrlEditor({ alwaysExpanded = false }: Props) {
   const t = useTheme();
-  const { apiBase, override } = configStore();
+  // imperative subscription to the zustand store — avoids hook-order surprises
+  // with React 19 + zustand v5's internal useCallback/useSyncExternalStore mix
+  const [apiBase, setApiBase] = useState(() => configStore.getState().apiBase);
+  const [override, setOverride] = useState(() => configStore.getState().override);
   const [expanded, setExpanded] = useState(alwaysExpanded);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => {
+    const s = configStore.getState();
+    return s.override ?? s.apiBase;
+  });
+
+  useEffect(() => {
+    return configStore.subscribe((state) => {
+      setApiBase(state.apiBase);
+      setOverride(state.override);
+    });
+  }, []);
 
   useEffect(() => {
     setInput(override ?? apiBase);

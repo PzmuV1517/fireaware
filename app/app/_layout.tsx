@@ -8,6 +8,7 @@ import {
   SpaceGrotesk_500Medium,
   SpaceGrotesk_700Bold,
 } from "@expo-google-fonts/space-grotesk";
+import { Ionicons } from "@expo/vector-icons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
@@ -37,6 +38,7 @@ export default function RootLayout() {
     EBGaramond_400Regular_Italic,
     EBGaramond_600SemiBold_Italic,
     JetBrainsMono_400Regular,
+    ...Ionicons.font,
   });
 
   useEffect(() => {
