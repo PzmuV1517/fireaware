@@ -34,6 +34,9 @@ yarn-error.log*
 
 # Build outputs
 *.tsbuildinfo
+*.apk
+*.aab
+*.ipa
 
 # Local data
 postgres-data/
