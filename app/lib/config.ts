@@ -8,6 +8,7 @@ const KEY = "fireaware.apiBase";
 function defaultApiBase(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (fromEnv) return fromEnv;
+  if (!__DEV__) return "https://fireaware.andreibanu.com/api";
   if (Platform.OS === "android") return "http://10.0.2.2:8000";
   const host = Constants.expoConfig?.hostUri?.split(":")[0];
   if (host) return `http://${host}:8000`;
