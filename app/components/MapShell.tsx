@@ -17,6 +17,7 @@ import type {
   FireZoneMarker,
   MapViewProps,
   PinOverlay,
+  PropagationRing,
   WaterReserveMarker,
 } from "@/components/map/types";
 import { api, type Fire as FireDto, type WaterReserve as WaterReserveDto } from "@/lib/api";
@@ -36,6 +37,7 @@ export interface MapShellConfig {
   onSelectFire?: (id: string) => void;
   styleUrl?: string;
   hidePois?: boolean;
+  propagationRings?: PropagationRing[];
 }
 
 interface MapShellApi {
@@ -164,7 +166,8 @@ export function MapShell({ children }: { children: ReactNode }) {
       prev.onMapClick === next.onMapClick &&
       prev.onSelectFire === next.onSelectFire &&
       prev.styleUrl === next.styleUrl &&
-      prev.hidePois === next.hidePois
+      prev.hidePois === next.hidePois &&
+      prev.propagationRings === next.propagationRings
     ) {
       return;
     }
@@ -278,6 +281,7 @@ export function MapShell({ children }: { children: ReactNode }) {
             onMapClick={config.onMapClick}
             onSelectFire={config.onSelectFire}
             cuttingLines={cuttingLineMarkers}
+            propagationRings={config.propagationRings}
             fireWinds={fireWinds}
             styleUrl={config.styleUrl}
             hidePois={config.hidePois}

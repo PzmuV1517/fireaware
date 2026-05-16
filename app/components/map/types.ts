@@ -34,6 +34,32 @@ export interface WaterReserveMarker {
   name: string;
 }
 
+export interface PropagationRing {
+  /** Expanded polygon ring coordinates [lon, lat][]. */
+  coordinates: [number, number][];
+  /** Hours ahead this ring represents. */
+  hours: number;
+  /** Fill/stroke colour for this ring. */
+  color: string;
+}
+
+/**
+ * Expands every vertex of a polygon radially outward from its centroid by
+ * `bufferM` metres. Works well for convex and mildly concave polygons.
+ */
+export function expandPolygon(
+  coords: [number, number][],
+  bufferM: number,
+): [number, number][] {
+  const { lat: clat, lon: clon } = polygonCentroid(coords);
+  return coords.map(([lon, lat]) => {
+    const bearing = bearingBetween(clat, clon, lat, lon);
+    const dist = haversineM(clat, clon, lat, lon);
+    const p = offsetPoint(clat, clon, bearing, dist + bufferM);
+    return [p.lon, p.lat] as [number, number];
+  });
+}
+
 export interface CuttingLineMarker {
   id: string;
   coordinates: [number, number][];
@@ -118,6 +144,7 @@ export interface MapViewProps {
   /** Hide all POI icon/label layers after the style loads. */
   hidePois?: boolean;
   cuttingLines?: CuttingLineMarker[];
+  propagationRings?: PropagationRing[];
   /** Wind samples — one per active fire — used to render a small grid of
    * smoke-direction arrows around each fire. */
   fireWinds?: FireWind[];

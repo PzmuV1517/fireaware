@@ -20,6 +20,7 @@ import type {
   FireWind,
   FireZoneMarker,
   MapViewProps,
+  PropagationRing,
   ReportMarker,
   WaterReserveMarker,
 } from "./types";
@@ -44,6 +45,9 @@ const WATER_SOURCE = "fa-water-reserves";
 const WATER_DOT_LAYER = "fa-water-reserves-dots";
 const WATER_LINK_SOURCE = "fa-water-links";
 const WATER_LINK_LAYER = "fa-water-links";
+const PROP_SOURCE = "fa-propagation";
+const PROP_FILL_LAYER = "fa-propagation-fill";
+const PROP_LINE_LAYER = "fa-propagation-line";
 const CUTTING_BUFFER_SOURCE = "fa-cutting-buffers";
 const CUTTING_BUFFER_LAYER = "fa-cutting-buffers";
 const CUTTING_SOURCE = "fa-cutting-lines";
@@ -68,6 +72,7 @@ export function MapView({
   styleUrl,
   hidePois,
   cuttingLines,
+  propagationRings,
   fireWinds,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -165,6 +170,23 @@ export function MapView({
           type: "line",
           source: PIN_LINE_SOURCE,
           paint: { "line-color": colors.accent, "line-width": 2.5 },
+        });
+      }
+      // propagation forecast rings — rendered below zone fill so the actual zone stays on top
+      if (!map.getSource(PROP_SOURCE)) {
+        map.addSource(PROP_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: PROP_FILL_LAYER, type: "fill", source: PROP_SOURCE,
+          paint: { "fill-color": ["get", "color"], "fill-opacity": 0.18 },
+        });
+        map.addLayer({
+          id: PROP_LINE_LAYER, type: "line", source: PROP_SOURCE,
+          paint: {
+            "line-color": ["get", "color"],
+            "line-width": 1.5,
+            "line-opacity": 0.7,
+            "line-dasharray": [4, 3],
+          },
         });
       }
       // fire zones fill + line
@@ -486,6 +508,19 @@ export function MapView({
     else map.once("idle", apply);
   }, [cuttingLines, mapEpoch]);
 
+  // sync propagation forecast rings
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource(PROP_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(propagationRingsToFC(propagationRings ?? []));
+    };
+    if (map.isStyleLoaded() && map.getSource(PROP_SOURCE)) apply();
+    else map.once("idle", apply);
+  }, [propagationRings, mapEpoch]);
+
+
   // sync wind-arrow grid around fires
   useEffect(() => {
     const map = mapRef.current;
@@ -640,6 +675,22 @@ function cuttingLinesToFC(lines: CuttingLineMarker[]) {
       type: "Feature" as const,
       properties: { id: l.id, label: l.label ?? "" },
       geometry: { type: "LineString" as const, coordinates: l.coordinates },
+    })),
+  };
+}
+
+function propagationRingsToFC(rings: PropagationRing[]) {
+  // Largest hours first — smaller rings paint on top so inner boundaries stay crisp.
+  const sorted = [...rings].sort((a, b) => b.hours - a.hours);
+  return {
+    type: "FeatureCollection" as const,
+    features: sorted.map((r) => ({
+      type: "Feature" as const,
+      properties: { hours: r.hours, color: r.color },
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [[...r.coordinates, r.coordinates[0]]],
+      },
     })),
   };
 }

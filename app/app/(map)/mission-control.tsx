@@ -1,12 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useMapShell } from "@/components/MapShell";
-import { haversineM } from "@/components/map/types";
+import { expandPolygon, haversineM, type PropagationRing } from "@/components/map/types";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import { WebNavBar } from "@/components/ui/WebNavBar";
@@ -43,6 +43,15 @@ export default function MissionControlScreen() {
   const [savingLine, setSavingLine] = useState(false);
   const [saveLineError, setSaveLineError] = useState<string | null>(null);
 
+  // propagation forecast
+  const [propZoneId, setPropZoneId] = useState<string | null>(null);
+  const [propRate, setPropRate] = useState("");
+
+  // sidebar collapse state
+  const [collapsed, setCollapsed] = useState({ zones: false, lines: false, water: false, fires: false, prop: false });
+  const toggleCard = (key: keyof typeof collapsed) =>
+    setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+
   // water reserves
   const [deletingWater, setDeletingWater] = useState<string | null>(null);
   const [placingWater, setPlacingWater] = useState(false);
@@ -62,6 +71,27 @@ export default function MissionControlScreen() {
     queryFn: () => api.cuttingLines.list(),
     refetchInterval: 60_000,
   });
+
+  const PROP_STEPS: { hours: number; color: string }[] = [
+    { hours: 1,  color: "#FCD34D" },
+    { hours: 2,  color: "#FB923C" },
+    { hours: 4,  color: "#F87171" },
+    { hours: 8,  color: "#EF4444" },
+    { hours: 24, color: "#991B1B" },
+  ];
+
+  const propagationRings = useMemo<PropagationRing[]>(() => {
+    const zone = fireZones.find((z) => z.id === propZoneId);
+    if (!zone) return [];
+    const rate = parseFloat(propRate);
+    if (!rate || rate <= 0) return [];
+    const coords = zone.coordinates as [number, number][];
+    return PROP_STEPS.map(({ hours, color }) => ({
+      coordinates: expandPolygon(coords, rate * hours),
+      hours,
+      color,
+    }));
+  }, [fireZones, propZoneId, propRate]);
 
   const handleMapClick = useCallback(
     (coord: { lat: number; lon: number }) => {
@@ -88,9 +118,10 @@ export default function MissionControlScreen() {
         onSelectFire: anyMode ? undefined : (id) => router.push(`/fire/${id}`),
         styleUrl: "https://tiles.openfreemap.org/styles/bright",
         hidePois: true,
+        propagationRings,
       });
       return () => setConfig({});
-    }, [drawing, points, drawingLine, linePoints, placingWater, handleMapClick, router, setConfig]),
+    }, [drawing, points, drawingLine, linePoints, placingWater, handleMapClick, router, setConfig, propagationRings]),
   );
 
   if (!hydrated) return null;
@@ -210,11 +241,14 @@ export default function MissionControlScreen() {
           >
             {/* ── fire zones ── */}
             <View style={[styles.sidebarCard, { backgroundColor: t.colors.surface, borderColor: t.colors.border }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Pressable onPress={() => toggleCard("zones")} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text variant="label" muted>fire zones</Text>
-                <Text variant="caption" muted>{fireZones.length}</Text>
-              </View>
-              <ScrollView style={{ maxHeight: 140 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text variant="caption" muted>{fireZones.length}</Text>
+                  <Ionicons name={collapsed.zones ? "chevron-down" : "chevron-up"} size={13} color={t.colors.inkMuted} />
+                </View>
+              </Pressable>
+              {!collapsed.zones && <ScrollView style={{ maxHeight: 140 }}>
                 {fireZones.length === 0 ? (
                   <Text variant="subtext" muted>no zones defined</Text>
                 ) : (
@@ -242,18 +276,21 @@ export default function MissionControlScreen() {
                     );
                   })
                 )}
-              </ScrollView>
+              </ScrollView>}
             </View>
 
             {/* ── cutting lines ── */}
             <View style={[styles.sidebarCard, { backgroundColor: t.colors.surface, borderColor: t.colors.border }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text variant="label" muted>cutting lines</Text>
-                <Text variant="caption" muted>{cuttingLines.length}</Text>
-              </View>
-              <ScrollView style={{ maxHeight: 120 }}>
+              <Pressable onPress={() => toggleCard("lines")} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text variant="label" muted>backburn lines</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text variant="caption" muted>{cuttingLines.length}</Text>
+                  <Ionicons name={collapsed.lines ? "chevron-down" : "chevron-up"} size={13} color={t.colors.inkMuted} />
+                </View>
+              </Pressable>
+              {!collapsed.lines && <ScrollView style={{ maxHeight: 120 }}>
                 {cuttingLines.length === 0 ? (
-                  <Text variant="subtext" muted>no cutting lines defined</Text>
+                  <Text variant="subtext" muted>no backburn lines defined</Text>
                 ) : (
                   cuttingLines.map((l) => {
                     const isDeleting = deletingLine === l.id;
@@ -282,109 +319,119 @@ export default function MissionControlScreen() {
                     );
                   })
                 )}
-              </ScrollView>
+              </ScrollView>}
             </View>
 
             {/* ── water reserves ── */}
             <View style={[styles.sidebarCard, { backgroundColor: t.colors.surface, borderColor: t.colors.border }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Pressable onPress={() => toggleCard("water")} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text variant="label" muted>water reserves</Text>
-                <Text variant="caption" muted>{waterReserves.length}</Text>
-              </View>
-              <ScrollView style={{ maxHeight: 120 }}>
-                {waterReserves.length === 0 ? (
-                  <Text variant="subtext" muted>no reserves added</Text>
-                ) : (
-                  waterReserves.map((r) => {
-                    const isDeleting = deletingWater === r.id;
-                    return (
-                      <View key={r.id} style={{ paddingVertical: t.space.sm, borderBottomColor: t.colors.border, borderBottomWidth: 1, gap: 4 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                          <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#2A7FC9" }} />
-                          <Text variant="label" style={{ flex: 1 }} numberOfLines={1}>{r.name}</Text>
-                          {r.capacity_l != null && (
-                            <Text variant="mono" style={{ fontSize: 11 }} muted>{fmtCapacity(r.capacity_l)}</Text>
-                          )}
-                        </View>
-                        <Pressable
-                          onPress={() => handleDeleteWater(r.id)}
-                          disabled={isDeleting}
-                          style={({ pressed }) => removeButtonStyle(t, pressed, isDeleting)}
-                        >
-                          {({ pressed }) => (
-                            <Text variant="label" color={pressed ? "#fff" : t.colors.danger}>
-                              {isDeleting ? "removing…" : "remove"}
-                            </Text>
-                          )}
-                        </Pressable>
-                      </View>
-                    );
-                  })
-                )}
-              </ScrollView>
-
-              {pendingWaterCoord ? (
-                <View style={{ gap: 8, marginTop: 4 }}>
-                  <Text variant="caption" muted>
-                    {pendingWaterCoord.lat.toFixed(4)}°, {pendingWaterCoord.lon.toFixed(4)}° — name this point:
-                  </Text>
-                  <TextInput
-                    value={waterName}
-                    onChangeText={setWaterName}
-                    placeholder="Name (required)"
-                    placeholderTextColor={t.colors.inkMuted}
-                    style={inputStyle}
-                  />
-                  <TextInput
-                    value={waterCapacity}
-                    onChangeText={setWaterCapacity}
-                    placeholder="Capacity in litres (optional)"
-                    placeholderTextColor={t.colors.inkMuted}
-                    keyboardType="numeric"
-                    style={inputStyle}
-                  />
-                  <View style={{ flexDirection: "row", gap: t.space.sm }}>
-                    <Button
-                      label="Save"
-                      onPress={handleSaveWater}
-                      disabled={!waterName.trim() || savingWater}
-                      loading={savingWater}
-                    />
-                    <Button label="Cancel" variant="secondary" onPress={handleCancelWater} />
-                  </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text variant="caption" muted>{waterReserves.length}</Text>
+                  <Ionicons name={collapsed.water ? "chevron-down" : "chevron-up"} size={13} color={t.colors.inkMuted} />
                 </View>
-              ) : (
-                <Pressable
-                  onPress={() => setPlacingWater(true)}
-                  disabled={placingWater}
-                  style={({ pressed }) => ({
-                    marginTop: 4,
-                    paddingHorizontal: t.space.md,
-                    paddingVertical: 8,
-                    borderRadius: t.radius.pill,
-                    borderWidth: 1.5,
-                    borderColor: "#2A7FC9",
-                    backgroundColor: pressed ? "#2A7FC9" : "transparent",
-                    alignItems: "center",
-                    opacity: placingWater ? 0.5 : 1,
-                  })}
-                >
-                  {({ pressed }) => (
-                    <Text variant="label" color={pressed ? "#fff" : "#2A7FC9"}>
-                      {placingWater ? "click map to place…" : "+ add water point"}
-                    </Text>
+              </Pressable>
+              {!collapsed.water && (
+                <>
+                  <ScrollView style={{ maxHeight: 120 }}>
+                    {waterReserves.length === 0 ? (
+                      <Text variant="subtext" muted>no reserves added</Text>
+                    ) : (
+                      waterReserves.map((r) => {
+                        const isDeleting = deletingWater === r.id;
+                        return (
+                          <View key={r.id} style={{ paddingVertical: t.space.sm, borderBottomColor: t.colors.border, borderBottomWidth: 1, gap: 4 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#2A7FC9" }} />
+                              <Text variant="label" style={{ flex: 1 }} numberOfLines={1}>{r.name}</Text>
+                              {r.capacity_l != null && (
+                                <Text variant="mono" style={{ fontSize: 11 }} muted>{fmtCapacity(r.capacity_l)}</Text>
+                              )}
+                            </View>
+                            <Pressable
+                              onPress={() => handleDeleteWater(r.id)}
+                              disabled={isDeleting}
+                              style={({ pressed }) => removeButtonStyle(t, pressed, isDeleting)}
+                            >
+                              {({ pressed }) => (
+                                <Text variant="label" color={pressed ? "#fff" : t.colors.danger}>
+                                  {isDeleting ? "removing…" : "remove"}
+                                </Text>
+                              )}
+                            </Pressable>
+                          </View>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+
+                  {pendingWaterCoord ? (
+                    <View style={{ gap: 8, marginTop: 4 }}>
+                      <Text variant="caption" muted>
+                        {pendingWaterCoord.lat.toFixed(4)}°, {pendingWaterCoord.lon.toFixed(4)}° — name this point:
+                      </Text>
+                      <TextInput
+                        value={waterName}
+                        onChangeText={setWaterName}
+                        placeholder="Name (required)"
+                        placeholderTextColor={t.colors.inkMuted}
+                        style={inputStyle}
+                      />
+                      <TextInput
+                        value={waterCapacity}
+                        onChangeText={setWaterCapacity}
+                        placeholder="Capacity in litres (optional)"
+                        placeholderTextColor={t.colors.inkMuted}
+                        keyboardType="numeric"
+                        style={inputStyle}
+                      />
+                      <View style={{ flexDirection: "row", gap: t.space.sm }}>
+                        <Button
+                          label="Save"
+                          onPress={handleSaveWater}
+                          disabled={!waterName.trim() || savingWater}
+                          loading={savingWater}
+                        />
+                        <Button label="Cancel" variant="secondary" onPress={handleCancelWater} />
+                      </View>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={() => setPlacingWater(true)}
+                      disabled={placingWater}
+                      style={({ pressed }) => ({
+                        marginTop: 4,
+                        paddingHorizontal: t.space.md,
+                        paddingVertical: 8,
+                        borderRadius: t.radius.pill,
+                        borderWidth: 1.5,
+                        borderColor: "#2A7FC9",
+                        backgroundColor: pressed ? "#2A7FC9" : "transparent",
+                        alignItems: "center",
+                        opacity: placingWater ? 0.5 : 1,
+                      })}
+                    >
+                      {({ pressed }) => (
+                        <Text variant="label" color={pressed ? "#fff" : "#2A7FC9"}>
+                          {placingWater ? "click map to place…" : "+ add water point"}
+                        </Text>
+                      )}
+                    </Pressable>
                   )}
-                </Pressable>
+                </>
               )}
             </View>
 
             {/* ── active fires ── */}
             <View style={[styles.sidebarCard, { backgroundColor: t.colors.surface, borderColor: t.colors.border }]}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Pressable onPress={() => toggleCard("fires")} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text variant="label" muted>active fires</Text>
-                <Text variant="caption" muted>{fires.length}</Text>
-              </View>
-              <ScrollView style={{ maxHeight: 200 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text variant="caption" muted>{fires.length}</Text>
+                  <Ionicons name={collapsed.fires ? "chevron-down" : "chevron-up"} size={13} color={t.colors.inkMuted} />
+                </View>
+              </Pressable>
+              {!collapsed.fires && <ScrollView style={{ maxHeight: 200 }}>
                 {fires.length === 0 ? (
                   <Text variant="subtext" muted>no active incidents</Text>
                 ) : (
@@ -427,9 +474,80 @@ export default function MissionControlScreen() {
                     );
                   })
                 )}
-              </ScrollView>
+              </ScrollView>}
             </View>
           </ScrollView>
+        </SafeAreaView>
+      )}
+
+      {Platform.OS === "web" && (
+        <SafeAreaView pointerEvents="box-none" style={styles.propPanel}>
+          <View style={[styles.sidebarCard, { backgroundColor: t.colors.surface, borderColor: t.colors.border }]}>
+            <Pressable onPress={() => toggleCard("prop")} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Text variant="label" muted>propagation forecast</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                {propagationRings.length > 0 && !collapsed.prop && (
+                  <Pressable onPress={(e) => { e.stopPropagation?.(); setPropZoneId(null); setPropRate(""); }} hitSlop={8}>
+                    <Text variant="caption" color={t.colors.accent}>clear</Text>
+                  </Pressable>
+                )}
+                <Ionicons name={collapsed.prop ? "chevron-down" : "chevron-up"} size={13} color={t.colors.inkMuted} />
+              </View>
+            </Pressable>
+
+            {!collapsed.prop && (
+              <>
+                <TextInput
+                  value={propRate}
+                  onChangeText={setPropRate}
+                  placeholder="Spread rate (m/h)"
+                  placeholderTextColor={t.colors.inkMuted}
+                  keyboardType="numeric"
+                  style={inputStyle}
+                />
+
+                <Text variant="caption" muted>seed zone</Text>
+                {fireZones.length === 0 ? (
+                  <Text variant="subtext" muted>define a fire zone first</Text>
+                ) : (
+                  <View style={{ gap: 4 }}>
+                    {fireZones.map((z, i) => {
+                      const selected = propZoneId === z.id;
+                      return (
+                        <Pressable
+                          key={z.id}
+                          onPress={() => setPropZoneId(selected ? null : z.id)}
+                          style={({ pressed }) => ({
+                            flexDirection: "row", alignItems: "center", gap: 8,
+                            paddingVertical: 6, paddingHorizontal: 8,
+                            borderRadius: t.radius.md, borderWidth: 1,
+                            borderColor: selected ? z.color : t.colors.border,
+                            backgroundColor: selected ? `${z.color}22` : "transparent",
+                            opacity: pressed ? 0.7 : 1,
+                          })}
+                        >
+                          <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: z.color }} />
+                          <Text variant="label" style={{ flex: 1 }} numberOfLines={1}>{z.label ?? "activate"}</Text>
+                          {selected && <Ionicons name="checkmark" size={14} color={z.color} />}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {propagationRings.length > 0 && (
+                  <View style={{ flexDirection: "row", gap: t.space.md, flexWrap: "wrap" }}>
+                    {PROP_STEPS.map(({ hours, color }) => (
+                      <View key={hours} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: color }} />
+                        <Text variant="caption" muted>{hours}h</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </View>
         </SafeAreaView>
       )}
 
@@ -438,7 +556,7 @@ export default function MissionControlScreen() {
           {isIdle ? (
             <View style={{ flexDirection: "row", gap: t.space.sm }}>
               <Button label="Draw zone" onPress={() => setDrawing(true)} />
-              <Button label="Draw cutting line" variant="secondary" onPress={() => setDrawingLine(true)} />
+              <Button label="Draw backburn line" variant="secondary" onPress={() => setDrawingLine(true)} />
             </View>
           ) : drawing ? (
             <View style={[styles.toolbarCard, { backgroundColor: t.colors.surface, borderColor: t.colors.border }]}>
@@ -587,6 +705,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 10,
     width: 340,
+  },
+  propPanel: {
+    position: "absolute",
+    bottom: 8,
+    left: 58,
+    padding: 16,
+    alignItems: "flex-start",
   },
   toolbar: {
     position: "absolute",
