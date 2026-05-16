@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ReactNode,
   createContext,
@@ -13,6 +13,7 @@ import { View } from "react-native";
 import { MapView } from "@/components/map/MapView";
 import type {
   CuttingLineMarker,
+  FireWind,
   FireZoneMarker,
   MapViewProps,
   PinOverlay,
@@ -112,6 +113,41 @@ export function MapShell({ children }: { children: ReactNode }) {
     refetchInterval: 60_000,
     placeholderData: keepPreviousData,
   });
+
+  // one weather query per active fire — caches per-coord so neighbouring
+  // fires that round to the same key share a fetch. Refreshed every 10 min.
+  const windQueries = useQueries({
+    queries: (fires ?? []).map((f) => {
+      const key = `${f.lat.toFixed(2)},${f.lon.toFixed(2)}`;
+      return {
+        queryKey: ["weather", key],
+        queryFn: () => api.weather.get(f.lat, f.lon),
+        staleTime: 10 * 60_000,
+        refetchInterval: 10 * 60_000,
+      };
+    }),
+  });
+
+  const fireWinds = useMemo<FireWind[]>(() => {
+    const out: FireWind[] = [];
+    (fires ?? []).forEach((f, i) => {
+      const w = windQueries[i]?.data;
+      if (!w) return;
+      out.push({
+        fireId: f.id,
+        lat: f.lat,
+        lon: f.lon,
+        // wind_direction_deg is the direction the wind comes FROM; smoke
+        // travels the opposite way
+        flowDeg: (w.wind_direction_deg + 180) % 360,
+        speedKmh: w.wind_speed,
+      });
+    });
+    return out;
+    // windQueries identity changes every render; depend on the actual data
+    // payloads instead via JSON keying
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fires, windQueries.map((q) => q.dataUpdatedAt).join(",")]);
 
   const configRef = useRef(config);
   configRef.current = config;
@@ -241,6 +277,7 @@ export function MapShell({ children }: { children: ReactNode }) {
             onMapClick={config.onMapClick}
             onSelectFire={config.onSelectFire}
             cuttingLines={cuttingLineMarkers}
+            fireWinds={fireWinds}
             styleUrl={config.styleUrl}
             hidePois={config.hidePois}
             redrawTick={redrawTick}

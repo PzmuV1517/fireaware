@@ -40,6 +40,17 @@ export interface CuttingLineMarker {
   label?: string | null;
 }
 
+/** A wind sample anchored to a fire. `flowDeg` is the direction the smoke is
+ * moving TOWARD (compass degrees, 0=N), already inverted from the
+ * meteorological "wind from" convention by the caller. */
+export interface FireWind {
+  fireId: string;
+  lat: number;
+  lon: number;
+  flowDeg: number;
+  speedKmh: number;
+}
+
 export interface MapViewProps {
   fires: FireMarker[];
   reports?: ReportMarker[];
@@ -64,6 +75,39 @@ export interface MapViewProps {
   /** Hide all POI icon/label layers after the style loads. */
   hidePois?: boolean;
   cuttingLines?: CuttingLineMarker[];
+  /** Wind samples — one per active fire — used to render a small grid of
+   * smoke-direction arrows around each fire. */
+  fireWinds?: FireWind[];
+}
+
+/** Returns a flat list of grid points filling a CIRCLE centred on (lat, lon).
+ * Generates a (2*radiusSteps+1) square lattice with `stepM` spacing, then
+ * keeps only the points within `radiusSteps * stepM` metres of the centre —
+ * giving the field a round footprint instead of a square one. */
+export function windGrid(
+  lat: number,
+  lon: number,
+  radiusSteps: number,
+  stepM: number,
+): { lat: number; lon: number }[] {
+  const pts: { lat: number; lon: number }[] = [];
+  const radiusM = radiusSteps * stepM;
+  for (let i = -radiusSteps; i <= radiusSteps; i++) {
+    for (let j = -radiusSteps; j <= radiusSteps; j++) {
+      const dx = j * stepM; // east offset
+      const dy = i * stepM; // north offset
+      const dist = Math.hypot(dx, dy);
+      if (dist > radiusM) continue;
+      if (dist === 0) {
+        pts.push({ lat, lon });
+        continue;
+      }
+      // bearing from north, clockwise; atan2(east, north)
+      const brg = (Math.atan2(dx, dy) * 180) / Math.PI;
+      pts.push(offsetPoint(lat, lon, brg, dist));
+    }
+  }
+  return pts;
 }
 
 const EARTH_R = 6_371_000;

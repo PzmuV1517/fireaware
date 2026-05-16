@@ -1,9 +1,17 @@
+import { useState } from "react";
 import RNMapView, { Marker, Polygon, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
 import { StyleSheet, Text as RNText, View } from "react-native";
 
 import { colors } from "@/theme/tokens";
 
-import { BEARING_LINE_M, bearingBetween, haversineM, offsetPoint, polygonTop } from "./types";
+import {
+  BEARING_LINE_M,
+  bearingBetween,
+  haversineM,
+  offsetPoint,
+  polygonTop,
+  windGrid,
+} from "./types";
 import type { FireMarker, MapViewProps, WaterReserveMarker } from "./types";
 
 export function MapView({
@@ -18,9 +26,14 @@ export function MapView({
   waterReserves,
   showClosestWater,
   cuttingLines,
+  fireWinds,
 }: MapViewProps) {
   const center = initialCenter ?? { lat: 38.7223, lon: -9.1393 };
   const delta = zoomToDelta(initialZoom);
+  // tracks the current map zoom level so we can hide the wind grid when the
+  // user is far enough zoomed out for the arrows to lose meaning
+  const [zoom, setZoom] = useState(initialZoom);
+  const showWind = zoom >= 10;
 
   return (
     <RNMapView
@@ -34,6 +47,7 @@ export function MapView({
         latitudeDelta: delta,
         longitudeDelta: delta,
       }}
+      onRegionChangeComplete={(r) => setZoom(deltaToZoom(r.longitudeDelta))}
       onPress={(e) => {
         if (!pin) return;
         const { latitude, longitude } = e.nativeEvent.coordinate;
@@ -142,6 +156,30 @@ export function MapView({
             </>
           );
         })()}
+
+      {showWind &&
+        (fireWinds ?? []).flatMap((w) =>
+          windGrid(w.lat, w.lon, 6, 300).map((p, i) => (
+            <Marker
+              key={`wind-${w.fireId}-${i}`}
+              coordinate={{ latitude: p.lat, longitude: p.lon }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+              zIndex={1}
+            >
+              <RNText
+                style={{
+                  fontSize: 32,
+                  color: "#4A4A4A",
+                  opacity: 0.55,
+                  transform: [{ rotate: `${w.flowDeg}deg` }],
+                }}
+              >
+                ↑
+              </RNText>
+            </Marker>
+          )),
+        )}
 
       {(cuttingLines ?? []).map((l) => (
         <Polyline
@@ -269,6 +307,10 @@ function markerSize(count: number): number {
 
 function zoomToDelta(zoom: number): number {
   return 360 / Math.pow(2, zoom);
+}
+
+function deltaToZoom(delta: number): number {
+  return Math.log2(360 / Math.max(delta, 1e-6));
 }
 
 function closestReserve(

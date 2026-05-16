@@ -11,10 +11,12 @@ import {
   haversineM,
   offsetPoint,
   polygonTop,
+  windGrid,
 } from "./types";
 import type {
   CuttingLineMarker,
   FireMarker,
+  FireWind,
   FireZoneMarker,
   MapViewProps,
   ReportMarker,
@@ -43,6 +45,8 @@ const WATER_LINK_SOURCE = "fa-water-links";
 const WATER_LINK_LAYER = "fa-water-links";
 const CUTTING_SOURCE = "fa-cutting-lines";
 const CUTTING_LAYER = "fa-cutting-lines";
+const WIND_SOURCE = "fa-wind-arrows";
+const WIND_LAYER = "fa-wind-arrows";
 
 export function MapView({
   fires,
@@ -61,6 +65,7 @@ export function MapView({
   styleUrl,
   hidePois,
   cuttingLines,
+  fireWinds,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
@@ -219,6 +224,38 @@ export function MapView({
             "circle-color": "#2A7FC9",
             "circle-stroke-color": "#FFFFFF",
             "circle-stroke-width": 2,
+          },
+        });
+      }
+      // wind-arrow grid around each active fire — drawn UNDER fires/reports so
+      // it acts as a background motion field rather than competing for clicks
+      if (!map.getSource(WIND_SOURCE)) {
+        map.addSource(WIND_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: WIND_LAYER,
+          type: "symbol",
+          source: WIND_SOURCE,
+          // hidden when zoomed out — the grid is meaningless at country scale
+          minzoom: 10,
+          layout: {
+            "text-field": "↑",
+            "text-size": 32,
+            "text-rotate": ["get", "rot"],
+            "text-rotation-alignment": "map",
+            "text-allow-overlap": true,
+            "text-ignore-placement": true,
+            "text-font": ["Noto Sans Regular"],
+          },
+          paint: {
+            "text-color": "#4A4A4A",
+            // fade in across the first zoom level above the cutoff
+            "text-opacity": [
+              "interpolate", ["linear"], ["zoom"],
+              10, 0,
+              11, 0.55,
+            ],
+            "text-halo-color": "#FFFFFF",
+            "text-halo-width": 1.2,
           },
         });
       }
@@ -436,6 +473,18 @@ export function MapView({
     else map.once("idle", apply);
   }, [cuttingLines, mapEpoch]);
 
+  // sync wind-arrow grid around fires
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource(WIND_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (src) src.setData(windArrowsToFC(fireWinds ?? []));
+    };
+    if (map.isStyleLoaded() && map.getSource(WIND_SOURCE)) apply();
+    else map.once("idle", apply);
+  }, [fireWinds, mapEpoch, redrawTick]);
+
   // switch base tile style when styleUrl prop changes
   useEffect(() => {
     const map = mapRef.current;
@@ -556,6 +605,19 @@ function syncPin(
   }
   current.setLngLat([coord.lon, coord.lat]);
   return current;
+}
+
+function windArrowsToFC(winds: FireWind[]) {
+  const features = winds.flatMap((w) => {
+    // radius 6 × 300 m step ≈ 1.8 km radius circular field around the fire
+    const grid = windGrid(w.lat, w.lon, 6, 300);
+    return grid.map((p) => ({
+      type: "Feature" as const,
+      properties: { rot: w.flowDeg },
+      geometry: { type: "Point" as const, coordinates: [p.lon, p.lat] },
+    }));
+  });
+  return { type: "FeatureCollection" as const, features };
 }
 
 function cuttingLinesToFC(lines: CuttingLineMarker[]) {

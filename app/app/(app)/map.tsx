@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MapView } from "@/components/map/MapView";
+import type { FireWind } from "@/components/map/types";
 import { Text } from "@/components/ui/Text";
 import { Toggle } from "@/components/ui/Toggle";
 import { WeatherWidget } from "@/components/ui/WeatherWidget";
@@ -41,6 +42,37 @@ export default function AppMap() {
     enabled: showReports,
   });
 
+  // one weather query per active fire — caches per rounded coord so neighbours
+  // share a fetch. Refreshed every 10 min, same cadence as the wind data.
+  const windQueries = useQueries({
+    queries: (fires ?? []).map((f) => {
+      const key = `${f.lat.toFixed(2)},${f.lon.toFixed(2)}`;
+      return {
+        queryKey: ["weather", key],
+        queryFn: () => api.weather.get(f.lat, f.lon),
+        staleTime: 10 * 60_000,
+        refetchInterval: 10 * 60_000,
+      };
+    }),
+  });
+
+  const fireWinds = useMemo<FireWind[]>(() => {
+    const out: FireWind[] = [];
+    (fires ?? []).forEach((f, i) => {
+      const w = windQueries[i]?.data;
+      if (!w) return;
+      out.push({
+        fireId: f.id,
+        lat: f.lat,
+        lon: f.lon,
+        flowDeg: (w.wind_direction_deg + 180) % 360,
+        speedKmh: w.wind_speed,
+      });
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fires, windQueries.map((q) => q.dataUpdatedAt).join(",")]);
+
   return (
     <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
       {mapCenter && (
@@ -60,6 +92,7 @@ export default function AppMap() {
             matched: r.fire_id != null,
           }))}
           showReports={showReports}
+          fireWinds={fireWinds}
           initialCenter={mapCenter.center}
           initialZoom={mapCenter.zoom}
           onSelectFire={(id) => router.push(`/fire/${id}`)}
