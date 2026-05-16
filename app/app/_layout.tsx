@@ -15,10 +15,11 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { useColorScheme, View } from "react-native";
+import { View } from "react-native";
 
 import { authStore } from "@/lib/auth";
 import { configStore } from "@/lib/config";
+import { useResolvedColorScheme } from "@/theme";
 import { colors, colorsDark } from "@/theme/tokens";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -28,7 +29,7 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const scheme = useColorScheme();
+  const scheme = useResolvedColorScheme();
   const palette = scheme === "dark" ? colorsDark : colors;
 
   const [fontsLoaded] = useFonts({
