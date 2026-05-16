@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 165 28" role="img" aria-label="FireAware">
+  <title>FireAware</title>
+
+  <!-- Wordmark: "Fire" in accent rust · "Aware" in near-black ink -->
+  <!-- y=22 puts cap-tops at ~y=2 and descenders flush at y=28, matching the 28px viewBox height -->
+  <text
+    x="0" y="22"
+    font-family="'Space Grotesk', system-ui, sans-serif"
+    font-weight="700"
+    font-size="28"
+    letter-spacing="-0.5"
+  >
+    <tspan fill="#C9532A">Fire</tspan><tspan fill="#1A1714">Aware</tspan>
+  </text>
+</svg>

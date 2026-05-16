@@ -16,7 +16,7 @@ def _line_to_out(l: CuttingLine) -> CuttingLineOut:
     ls: LineString = to_shape(l.path)
     coords = [[lon, lat] for lon, lat in ls.coords]
     return CuttingLineOut(id=l.id, created_by=l.created_by, coordinates=coords,
-                          label=l.label, length_m=l.length_m,
+                          label=l.label, length_m=l.length_m, range_m=l.range_m,
                           is_active=l.is_active, created_at=l.created_at)
 
 @router.get("", response_model=list[CuttingLineOut])
@@ -47,7 +47,7 @@ def create_cutting_line(
             or 0
         )
     )
-    line = CuttingLine(created_by=user.id, path=ls_wkb, label=body.label, length_m=length_m)
+    line = CuttingLine(created_by=user.id, path=ls_wkb, label=body.label, length_m=length_m, range_m=body.range_m)
     db.add(line)
     db.commit()
     db.refresh(line)

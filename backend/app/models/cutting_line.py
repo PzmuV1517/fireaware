@@ -13,5 +13,6 @@ class CuttingLine(Base):
     path = mapped_column(Geography(geometry_type="LINESTRING", srid=4326), nullable=False)
     label: Mapped[str | None] = mapped_column(String(200), nullable=True)
     length_m: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    range_m: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

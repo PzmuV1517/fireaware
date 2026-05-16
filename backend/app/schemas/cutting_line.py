@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 class CuttingLineCreate(BaseModel):
     coordinates: list[list[float]] = Field(..., description="Ordered [lon, lat] pairs, at least 2")
     label: str | None = None
+    range_m: float = Field(0.0, ge=0, description="Half-width of the cleared corridor in metres")
 
 class CuttingLineOut(BaseModel):
     id: UUID
@@ -12,5 +13,6 @@ class CuttingLineOut(BaseModel):
     coordinates: list[list[float]]
     label: str | None
     length_m: float
+    range_m: float
     is_active: bool
     created_at: datetime

@@ -257,6 +257,7 @@ export function MapShell({ children }: { children: ReactNode }) {
         id: l.id,
         coordinates: l.coordinates,
         label: l.label,
+        range_m: l.range_m,
       })),
     [cuttingLines],
   );

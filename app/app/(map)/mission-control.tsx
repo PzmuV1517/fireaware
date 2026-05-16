@@ -39,6 +39,7 @@ export default function MissionControlScreen() {
   const [drawingLine, setDrawingLine] = useState(false);
   const [linePoints, setLinePoints] = useState<[number, number][]>([]);
   const [lineLabel, setLineLabel] = useState("");
+  const [lineRange, setLineRange] = useState("");
   const [savingLine, setSavingLine] = useState(false);
   const [saveLineError, setSaveLineError] = useState<string | null>(null);
 
@@ -130,15 +131,16 @@ export default function MissionControlScreen() {
     if (linePoints.length < 2) return;
     setSavingLine(true); setSaveLineError(null);
     try {
-      await api.cuttingLines.create({ coordinates: linePoints, label: lineLabel.trim() || null });
-      setLinePoints([]); setLineLabel(""); setDrawingLine(false);
+      const range_m = parseFloat(lineRange) || 0;
+      await api.cuttingLines.create({ coordinates: linePoints, label: lineLabel.trim() || null, range_m });
+      setLinePoints([]); setLineLabel(""); setLineRange(""); setDrawingLine(false);
       await refetch();
     } catch (e) {
       setSaveLineError(e instanceof Error ? e.message : "Failed to save line");
     } finally { setSavingLine(false); }
   };
 
-  const handleCancelLine = () => { setLinePoints([]); setLineLabel(""); setDrawingLine(false); setSaveLineError(null); };
+  const handleCancelLine = () => { setLinePoints([]); setLineLabel(""); setLineRange(""); setDrawingLine(false); setSaveLineError(null); };
 
   // ── water reserve handlers ──────────────────────────────────────────────
   const handleDeleteWater = async (id: string) => {
@@ -261,6 +263,9 @@ export default function MissionControlScreen() {
                           <View style={{ width: 20, height: 3, backgroundColor: "#E8A317", borderRadius: 2 }} />
                           <Text variant="label" style={{ flex: 1 }} numberOfLines={1}>{l.label ?? "unlabeled"}</Text>
                           <Text variant="mono" style={{ fontSize: 11 }} muted>{fmtKm(l.length_m)}</Text>
+                          {l.range_m > 0 && (
+                            <Text variant="mono" style={{ fontSize: 11 }} muted>±{l.range_m}m</Text>
+                          )}
                         </View>
                         <Pressable
                           onPress={() => handleDeleteLine(l.id)}
@@ -492,6 +497,14 @@ export default function MissionControlScreen() {
                 onChangeText={setLineLabel}
                 placeholder="Line label (optional)"
                 placeholderTextColor={t.colors.inkMuted}
+                style={inputStyle}
+              />
+              <TextInput
+                value={lineRange}
+                onChangeText={setLineRange}
+                placeholder="Corridor range (m)"
+                placeholderTextColor={t.colors.inkMuted}
+                keyboardType="numeric"
                 style={inputStyle}
               />
 

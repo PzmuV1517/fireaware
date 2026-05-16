@@ -9,6 +9,7 @@ import {
   BEARING_LINE_M,
   bearingBetween,
   haversineM,
+  lineCorridorRing,
   offsetPoint,
   polygonTop,
   windGrid,
@@ -43,6 +44,8 @@ const WATER_SOURCE = "fa-water-reserves";
 const WATER_DOT_LAYER = "fa-water-reserves-dots";
 const WATER_LINK_SOURCE = "fa-water-links";
 const WATER_LINK_LAYER = "fa-water-links";
+const CUTTING_BUFFER_SOURCE = "fa-cutting-buffers";
+const CUTTING_BUFFER_LAYER = "fa-cutting-buffers";
 const CUTTING_SOURCE = "fa-cutting-lines";
 const CUTTING_LAYER = "fa-cutting-lines";
 const WIND_SOURCE = "fa-wind-arrows";
@@ -259,7 +262,14 @@ export function MapView({
           },
         });
       }
-      // vegetation cutting lines
+      // vegetation cutting lines — corridor fill then centre stroke
+      if (!map.getSource(CUTTING_BUFFER_SOURCE)) {
+        map.addSource(CUTTING_BUFFER_SOURCE, { type: "geojson", data: emptyFC() });
+        map.addLayer({
+          id: CUTTING_BUFFER_LAYER, type: "fill", source: CUTTING_BUFFER_SOURCE,
+          paint: { "fill-color": "#E8A317", "fill-opacity": 0.35 },
+        });
+      }
       if (!map.getSource(CUTTING_SOURCE)) {
         map.addSource(CUTTING_SOURCE, { type: "geojson", data: emptyFC() });
         map.addLayer({
@@ -466,8 +476,11 @@ export function MapView({
     const map = mapRef.current;
     if (!map) return;
     const apply = () => {
-      const src = map.getSource(CUTTING_SOURCE) as maplibregl.GeoJSONSource | undefined;
-      if (src) src.setData(cuttingLinesToFC(cuttingLines ?? []));
+      const lines = cuttingLines ?? [];
+      const lineSrc = map.getSource(CUTTING_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (lineSrc) lineSrc.setData(cuttingLinesToFC(lines));
+      const bufSrc = map.getSource(CUTTING_BUFFER_SOURCE) as maplibregl.GeoJSONSource | undefined;
+      if (bufSrc) bufSrc.setData(cuttingBuffersToFC(lines));
     };
     if (map.isStyleLoaded() && map.getSource(CUTTING_SOURCE)) apply();
     else map.once("idle", apply);
@@ -628,6 +641,22 @@ function cuttingLinesToFC(lines: CuttingLineMarker[]) {
       properties: { id: l.id, label: l.label ?? "" },
       geometry: { type: "LineString" as const, coordinates: l.coordinates },
     })),
+  };
+}
+
+function cuttingBuffersToFC(lines: CuttingLineMarker[]) {
+  return {
+    type: "FeatureCollection" as const,
+    features: lines
+      .filter((l) => l.range_m > 0)
+      .map((l) => ({
+        type: "Feature" as const,
+        properties: { id: l.id },
+        geometry: {
+          type: "Polygon" as const,
+          coordinates: [lineCorridorRing(l.coordinates, l.range_m)],
+        },
+      })),
   };
 }
 

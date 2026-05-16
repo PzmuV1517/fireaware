@@ -165,6 +165,7 @@ export interface CuttingLine {
   coordinates: [number, number][];
   label: string | null;
   length_m: number;
+  range_m: number;
   is_active: boolean;
   created_at: string;
 }
@@ -260,7 +261,7 @@ export const api = {
   },
   cuttingLines: {
     list: () => request<CuttingLine[]>("/api/v1/cutting-lines", { auth: false }),
-    create: (body: { coordinates: [number, number][]; label?: string | null }) =>
+    create: (body: { coordinates: [number, number][]; label?: string | null; range_m?: number }) =>
       request<CuttingLine>("/api/v1/cutting-lines", {
         method: "POST",
         body: JSON.stringify(body),

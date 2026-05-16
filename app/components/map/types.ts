@@ -38,6 +38,49 @@ export interface CuttingLineMarker {
   id: string;
   coordinates: [number, number][];
   label?: string | null;
+  range_m: number;
+}
+
+/**
+ * Builds a corridor polygon around a linestring by offsetting each vertex
+ * perpendicularly by `rangeM` metres and returning a closed ring suitable for
+ * a GeoJSON Polygon geometry (coordinates[0]).
+ */
+export function lineCorridorRing(
+  coords: [number, number][],
+  rangeM: number,
+): [number, number][] {
+  if (coords.length < 2 || rangeM <= 0) return [];
+
+  const left: [number, number][] = [];
+  const right: [number, number][] = [];
+
+  for (let i = 0; i < coords.length; i++) {
+    const [lon, lat] = coords[i];
+
+    let bearing: number;
+    if (i === 0) {
+      bearing = bearingBetween(lat, lon, coords[1][1], coords[1][0]);
+    } else if (i === coords.length - 1) {
+      bearing = bearingBetween(coords[i - 1][1], coords[i - 1][0], lat, lon);
+    } else {
+      const b1 = bearingBetween(coords[i - 1][1], coords[i - 1][0], lat, lon);
+      const b2 = bearingBetween(lat, lon, coords[i + 1][1], coords[i + 1][0]);
+      let diff = b2 - b1;
+      if (diff > 180) diff -= 360;
+      if (diff < -180) diff += 360;
+      bearing = (b1 + diff / 2 + 360) % 360;
+    }
+
+    const lp = offsetPoint(lat, lon, (bearing - 90 + 360) % 360, rangeM);
+    const rp = offsetPoint(lat, lon, (bearing + 90) % 360, rangeM);
+    left.push([lp.lon, lp.lat]);
+    right.push([rp.lon, rp.lat]);
+  }
+
+  const ring: [number, number][] = [...left, ...right.reverse()];
+  ring.push(ring[0]);
+  return ring;
 }
 
 /** A wind sample anchored to a fire. `flowDeg` is the direction the smoke is
