@@ -6,6 +6,10 @@
     "preview": {
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "ANDROID_HOME": "/Users/andreibanu/Library/Android/sdk",
+        "ANDROID_SDK_ROOT": "/Users/andreibanu/Library/Android/sdk"
       }
     }
   }

@@ -68,7 +68,7 @@ export default function Capture() {
         });
       } else {
         // capture position again at shutter for the live-sensor flow
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
         draft.set({
           photoUri: photo.uri,
           photoMime: "image/jpeg",
