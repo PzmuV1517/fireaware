@@ -12,7 +12,12 @@ const forced = forcedScheme === "dark" || forcedScheme === "light" ? forcedSchem
 
 export function useResolvedColorScheme(): Scheme {
   const rnScheme = useColorScheme();
-  const [webScheme, setWebScheme] = useState<Scheme | null>(null);
+  const [webScheme, setWebScheme] = useState<Scheme | null>(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined" || !window.matchMedia) {
+      return null;
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined" || !window.matchMedia) return;
