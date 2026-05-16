@@ -446,12 +446,25 @@ export function MapView({
     map.setStyle(next);
   }, [styleUrl]);
 
-  // hide/show POI layers after every style load or when hidePois toggles
+  // hide/show POI + ferry-route layers after every style load or when
+  // hidePois toggles. Ferry lines (the "sea routes" the OpenFreeMap bright
+  // style draws over water) live in the OpenMapTiles `transportation`
+  // source-layer filtered by `class: ferry`. The style-layer id doesn't
+  // always contain "ferry", so we also walk the filter expression looking
+  // for the literal value.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
     for (const layer of map.getStyle().layers ?? []) {
-      if ((layer as { "source-layer"?: string })["source-layer"] === "poi") {
+      const sourceLayer = (layer as { "source-layer"?: string })["source-layer"];
+      const filter = (layer as { filter?: unknown }).filter;
+      const id = layer.id.toLowerCase();
+      const isPoi = sourceLayer === "poi";
+      const isFerry =
+        id.includes("ferry") ||
+        sourceLayer === "ferry" ||
+        filterHasValue(filter, "ferry");
+      if (isPoi || isFerry) {
         map.setLayoutProperty(layer.id, "visibility", hidePois ? "none" : "visible");
       }
     }
@@ -470,6 +483,16 @@ export function MapView({
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
     </View>
   );
+}
+
+/** Recursively check whether a maplibre filter expression mentions the given
+ * literal value. Catches both legacy filters (["==", "class", "ferry"]) and
+ * expression filters (["==", ["get", "class"], "ferry"]). */
+function filterHasValue(filter: unknown, value: string): boolean {
+  if (filter == null) return false;
+  if (typeof filter === "string") return filter === value;
+  if (Array.isArray(filter)) return filter.some((f) => filterHasValue(f, value));
+  return false;
 }
 
 function syncFire(

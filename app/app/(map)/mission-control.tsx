@@ -202,7 +202,7 @@ export default function MissionControlScreen() {
       {Platform.OS === "web" && (
         <SafeAreaView pointerEvents="box-none" style={styles.sidebar}>
           <ScrollView
-            style={{ maxHeight: 640 }}
+            style={{ flex: 1, width: 340 }}
             contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
             showsVerticalScrollIndicator={false}
           >
@@ -561,6 +561,9 @@ const styles = StyleSheet.create({
   sidebar: {
     position: "absolute",
     top: 80,
+    // bottom is fixed so the sidebar always stops short of the toolbar,
+    // regardless of screen height. The inner ScrollView handles overflow.
+    bottom: 250,
     right: 0,
     padding: 16,
     alignItems: "flex-end",
