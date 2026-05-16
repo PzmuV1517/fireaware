@@ -7,8 +7,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MapView } from "@/components/map/MapView";
 import type { FireWind } from "@/components/map/types";
+import { ChipButton } from "@/components/ui/ChipButton";
 import { Text } from "@/components/ui/Text";
-import { Toggle } from "@/components/ui/Toggle";
 import { WeatherWidget } from "@/components/ui/WeatherWidget";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -99,10 +99,13 @@ export default function AppMap() {
         />
       )}
       <SafeAreaView pointerEvents="box-none" style={styles.top}>
-        <Toggle
-          label={showReports ? "Reports on" : "Show reports"}
-          value={showReports}
-          onChange={(v) => {
+        <ChipButton
+          label={showReports ? "Reports on" : "Reports"}
+          icon="flag-outline"
+          iconActive="flag"
+          active={showReports}
+          onPress={() => {
+            const v = !showReports;
             setShowReports(v);
             if (v) qc.refetchQueries({ queryKey: ["reports", "public"] });
           }}

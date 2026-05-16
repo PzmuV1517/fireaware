@@ -8,8 +8,8 @@ import { LoginIsland } from "@/components/LoginIsland";
 import { useMapShell } from "@/components/MapShell";
 import { bearingBetween } from "@/components/map/types";
 import { Button } from "@/components/ui/Button";
+import { ChipButton } from "@/components/ui/ChipButton";
 import { Text } from "@/components/ui/Text";
-import { Toggle } from "@/components/ui/Toggle";
 import { WebNavBar } from "@/components/ui/WebNavBar";
 import { WeatherWidget } from "@/components/ui/WeatherWidget";
 import { api } from "@/lib/api";
@@ -123,19 +123,25 @@ export default function PublicMapScreen() {
         )}
 
         <View style={styles.controlsRow} pointerEvents="box-none">
-          <Toggle
-            label={showReports ? "Reports on" : "Show reports"}
-            value={showReports}
-            onChange={(v) => {
+          <ChipButton
+            label={showReports ? "Reports on" : "Reports"}
+            icon="flag-outline"
+            iconActive="flag"
+            active={showReports}
+            onPress={() => {
+              const v = !showReports;
               setShowReports(v);
               if (v) qc.refetchQueries({ queryKey: ["reports", "public"] });
             }}
           />
           {Platform.OS === "web" && (
-            <Toggle
-              label={pinMode ? "Pin mode on" : "Drop a pin (demo)"}
-              value={pinMode}
-              onChange={(v) => {
+            <ChipButton
+              label={pinMode ? "Pin mode on" : "Drop a pin"}
+              icon="location-outline"
+              iconActive="location"
+              active={pinMode}
+              onPress={() => {
+                const v = !pinMode;
                 setPinMode(v);
                 if (!v) resetPin();
               }}
