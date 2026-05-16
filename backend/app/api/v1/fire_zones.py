@@ -33,7 +33,17 @@ def create_fire_zone(body: FireZoneCreate, db: Session = Depends(get_db), user: 
     if not poly.is_valid:
         raise HTTPException(status_code=422, detail="Invalid polygon geometry")
     poly_wkb = from_shape(poly, srid=4326)
-    area_m2 = abs(float(db.scalar(select(func.ST_Area(poly_wkb))) or 0))
+    # Compute area in square metres. ST_Area on a raw WKB falls through to the
+    # geometry overload (returns degrees² for SRID 4326); wrap in
+    # ST_GeogFromText so PostGIS picks the geography overload (metres²).
+    area_m2 = abs(
+        float(
+            db.scalar(
+                select(func.ST_Area(func.ST_GeogFromText(f"SRID=4326;{poly.wkt}")))
+            )
+            or 0
+        )
+    )
     zone = FireZone(created_by=user.id, polygon=poly_wkb, label=body.label, color=body.color, area_m2=area_m2)
     db.add(zone)
     db.commit()

@@ -37,7 +37,16 @@ def create_cutting_line(
         raise HTTPException(status_code=422, detail="Line needs at least 2 points")
     ls = LineString(coords)
     ls_wkb = from_shape(ls, srid=4326)
-    length_m = abs(float(db.scalar(select(func.ST_Length(ls_wkb))) or 0))
+    # Same gotcha as fire-zone area — ST_Length on raw WKB picks the
+    # geometry overload (degrees); cast to geography for metres.
+    length_m = abs(
+        float(
+            db.scalar(
+                select(func.ST_Length(func.ST_GeogFromText(f"SRID=4326;{ls.wkt}")))
+            )
+            or 0
+        )
+    )
     line = CuttingLine(created_by=user.id, path=ls_wkb, label=body.label, length_m=length_m)
     db.add(line)
     db.commit()
