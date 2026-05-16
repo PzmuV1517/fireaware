@@ -1,13 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { type LayoutChangeEvent, Pressable, View } from "react-native";
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
 
 import { useTheme } from "@/theme";
 
@@ -19,11 +13,6 @@ interface WebNavBarProps {
   currentPage: TabKey;
   isFireman?: boolean;
 }
-
-const SLIDE = {
-  duration: 260,
-  easing: Easing.bezier(0.16, 1, 0.3, 1), // ease-out-quint, Apple-like deceleration
-};
 
 export function WebNavBar({ currentPage, isFireman = false }: WebNavBarProps) {
   const t = useTheme();
@@ -86,59 +75,29 @@ interface SegmentedTabsProps {
 
 /**
  * iOS-style segmented control. The orange pill is absolutely positioned and
- * its translateX + width animate to match the active tab — measured at mount
- * via onLayout so labels of any length work.
+ * animates to the active tab using a plain CSS transition under the hood
+ * (react-native-web passes the `transition*` style props through to the DOM).
+ * This component only renders on web — `WebNavBar` is gated by
+ * `Platform.OS === "web"` in every callsite.
  */
 function SegmentedTabs({ currentPage, onSelect }: SegmentedTabsProps) {
   const t = useTheme();
-  const layouts = useRef<Record<TabKey, { x: number; width: number } | undefined>>({
-    map: undefined,
-    "mission-control": undefined,
+  const [layouts, setLayouts] = useState<Record<TabKey, { x: number; width: number } | null>>({
+    map: null,
+    "mission-control": null,
   });
-  const pillX = useSharedValue(0);
-  const pillW = useSharedValue(0);
-  const [measured, setMeasured] = useState(false);
-
-  const movePillTo = (key: TabKey, animated: boolean) => {
-    const l = layouts.current[key];
-    if (!l) return;
-    if (animated) {
-      pillX.value = withTiming(l.x, SLIDE);
-      pillW.value = withTiming(l.width, SLIDE);
-    } else {
-      pillX.value = l.x;
-      pillW.value = l.width;
-    }
-  };
 
   const onTabLayout = (key: TabKey) => (e: LayoutChangeEvent) => {
     const { x, width } = e.nativeEvent.layout;
-    layouts.current[key] = { x, width };
-    // once both tabs are measured, snap the pill to the active one without
-    // animation; subsequent currentPage changes will animate
-    if (!measured && layouts.current.map && layouts.current["mission-control"]) {
-      setMeasured(true);
-      movePillTo(currentPage, false);
-    } else if (measured && key === currentPage) {
-      movePillTo(currentPage, false);
-    }
+    setLayouts((s) => {
+      const prev = s[key];
+      if (prev && prev.x === x && prev.width === width) return s;
+      return { ...s, [key]: { x, width } };
+    });
   };
 
-  useEffect(() => {
-    if (measured) movePillTo(currentPage, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, measured]);
-
-  const pillStyle = useAnimatedStyle(() => ({
-    position: "absolute",
-    top: 3,
-    bottom: 3,
-    left: 0,
-    width: pillW.value,
-    transform: [{ translateX: pillX.value }],
-    backgroundColor: t.colors.accent,
-    borderRadius: t.radius.pill,
-  }));
+  const bothMeasured = layouts.map != null && layouts["mission-control"] != null;
+  const active = layouts[currentPage];
 
   return (
     <View
@@ -152,7 +111,28 @@ function SegmentedTabs({ currentPage, onSelect }: SegmentedTabsProps) {
         borderColor: t.colors.border,
       }}
     >
-      <Animated.View style={pillStyle} pointerEvents="none" />
+      {bothMeasured && active && (
+        <View
+          pointerEvents="none"
+          style={
+            {
+              position: "absolute",
+              top: 3,
+              bottom: 3,
+              left: 0,
+              width: active.width,
+              transform: [{ translateX: active.x }],
+              backgroundColor: t.colors.accent,
+              borderRadius: t.radius.pill,
+              // react-native-web maps these directly to CSS — runs in the
+              // browser's compositor, smooth on every refresh rate.
+              transitionProperty: "transform, width",
+              transitionDuration: "260ms",
+              transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+            } as object
+          }
+        />
+      )}
       <TabButton
         label="Map"
         active={currentPage === "map"}
@@ -188,7 +168,19 @@ function TabButton({ label, active, onLayout, onPress }: TabButtonProps) {
         borderRadius: t.radius.pill,
       }}
     >
-      <Text variant="label" color={active ? "#fff" : t.colors.inkMuted}>
+      <Text
+        variant="label"
+        color={active ? "#fff" : t.colors.inkMuted}
+        // text color transition matches the pill so the swap doesn't feel
+        // detached from the slide
+        style={
+          {
+            transitionProperty: "color",
+            transitionDuration: "260ms",
+            transitionTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+          } as object
+        }
+      >
         {label}
       </Text>
     </Pressable>

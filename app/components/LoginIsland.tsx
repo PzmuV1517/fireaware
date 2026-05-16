@@ -8,6 +8,7 @@ import Animated, {
   FadeOut,
 } from "react-native-reanimated";
 
+import { BackendUrlEditor } from "@/components/BackendUrlEditor";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
@@ -241,6 +242,10 @@ export function LoginIsland() {
               loading={loading}
               fullWidth
             />
+          </Animated.View>
+
+          <Animated.View layout={TRANSITION}>
+            <BackendUrlEditor />
           </Animated.View>
         </Animated.View>
       )}

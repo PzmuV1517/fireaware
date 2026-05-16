@@ -4,7 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # protected_namespaces=() lets us name a field `model_weights_path` without
+    # the Pydantic protected-namespace warning.
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", protected_namespaces=())
 
     database_url: str = "postgresql+psycopg://fireaware:fireaware@localhost:5432/fireaware"
 
@@ -26,6 +28,9 @@ class Settings(BaseSettings):
     cluster_eps_m: float = 200.0
     proximity_eps_m: float = 300.0
     proximity_min_samples: int = 3
+
+    model_weights_path: str = "../trainDataset/best.pt"
+    min_fire_confidence: float = 0.3
 
 
     @property

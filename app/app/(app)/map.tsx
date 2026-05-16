@@ -159,7 +159,9 @@ const styles = StyleSheet.create({
   },
   bottomLeft: {
     position: "absolute",
-    bottom: 0,
+    // sits ABOVE the "Report a fire" pill so the expanded weather card doesn't
+    // overlap the button on narrow screens
+    bottom: 80,
     right: 0,
     padding: 16,
   },

@@ -18,7 +18,7 @@ def find_latest_weights(runs_dir: Path) -> Path:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run YOLOv11 on a live camera feed to visualize fire/smoke."
+        description="Run YOLOv8 on a live camera feed to visualize fire/smoke."
     )
     parser.add_argument(
         "--weights",
@@ -27,10 +27,21 @@ def parse_args() -> argparse.Namespace:
         help="Path to a trained weights file (best.pt/last.pt).",
     )
     parser.add_argument(
+        "--size",
+        choices=["n", "s", "m", "l", "x"],
+        default="s",
+        help="YOLOv8 pretrained size when --weights is not set.",
+    )
+    parser.add_argument(
         "--runs-dir",
         type=str,
         default=str(Path(__file__).resolve().parent / "runs"),
-        help="Where to look for latest weights if --weights is not set.",
+        help="Where to look for latest weights when using --use-latest.",
+    )
+    parser.add_argument(
+        "--use-latest",
+        action="store_true",
+        help="Use the latest trained weights from --runs-dir instead of pretrained YOLOv8.",
     )
     parser.add_argument(
         "--camera",
@@ -50,7 +61,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    weights = Path(args.weights) if args.weights else find_latest_weights(Path(args.runs_dir))
+    if args.weights:
+        weights = Path(args.weights)
+    elif args.use_latest:
+        weights = find_latest_weights(Path(args.runs_dir))
+    else:
+        weights = Path(f"yolov8{args.size}.pt")
     device = args.device if args.device else None
 
     model = YOLO(str(weights))
@@ -58,7 +74,7 @@ def main() -> None:
     if not cap.isOpened():
         raise SystemExit(f"Unable to open camera index {args.camera}.")
 
-    window_name = "FireAware - YOLOv11"
+    window_name = "FireAware - YOLOv8"
     while True:
         ok, frame = cap.read()
         if not ok:

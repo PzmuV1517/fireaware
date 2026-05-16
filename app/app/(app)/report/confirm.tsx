@@ -2,13 +2,25 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Platform, ScrollView, View } from "react-native";
+import {
+  ActivityIndicator,
+  type LayoutChangeEvent,
+  Platform,
+  ScrollView,
+  View,
+} from "react-native";
 
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
-import { api } from "@/lib/api";
+import { api, type AnalysisDetection, type AnalysisResult } from "@/lib/api";
 import { useReportDraft } from "@/lib/reportDraft";
 import { useTheme } from "@/theme";
+
+type AnalyzeState =
+  | { kind: "idle" }
+  | { kind: "running" }
+  | { kind: "done"; result: AnalysisResult }
+  | { kind: "error"; message: string };
 
 export default function Confirm() {
   const t = useTheme();
@@ -17,6 +29,8 @@ export default function Confirm() {
   const qc = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<AnalyzeState>({ kind: "idle" });
+  const [imgLayout, setImgLayout] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
   const ready =
     draft.lat != null &&
@@ -25,12 +39,38 @@ export default function Confirm() {
     draft.photoUri != null &&
     draft.takenAt != null;
 
-  const submit = async () => {
+  const buildPhotoForm = (): FormData => {
+    const form = new FormData();
+    const photoFile = {
+      uri: draft.photoUri!,
+      name: "report.jpg",
+      type: draft.photoMime ?? "image/jpeg",
+    } as unknown as Blob;
+    form.append("photo", photoFile);
+    return form;
+  };
+
+  const runAnalysis = async () => {
+    setAnalysis({ kind: "running" });
+    setError(null);
+    try {
+      const result = await api.reports.analyze(buildPhotoForm());
+      setAnalysis({ kind: "done", result });
+    } catch (e) {
+      setAnalysis({
+        kind: "error",
+        message: e instanceof Error ? e.message : "Analysis failed",
+      });
+    }
+  };
+
+  const sendReport = async () => {
     if (!ready) return;
+    if (analysis.kind !== "done" || !analysis.result.valid) return;
     setSubmitting(true);
     setError(null);
     try {
-      const form = new FormData();
+      const form = buildPhotoForm();
       form.append(
         "payload",
         JSON.stringify({
@@ -40,16 +80,16 @@ export default function Confirm() {
           bearing_acc_deg: draft.bearingAccDeg ?? 5,
           gps_acc_m: draft.gpsAccM ?? 20,
           taken_at: draft.takenAt,
-          device_meta: { platform: Platform.OS, version: Platform.Version },
+          device_meta: {
+            platform: Platform.OS,
+            version: Platform.Version,
+            vision: {
+              fire: analysis.result.max_fire_confidence,
+              smoke: analysis.result.max_smoke_confidence,
+            },
+          },
         }),
       );
-      const photoFile = {
-        uri: draft.photoUri!,
-        name: "report.jpg",
-        type: draft.photoMime ?? "image/jpeg",
-      } as unknown as Blob;
-      form.append("photo", photoFile);
-
       const res = await api.reports.submit(form);
       await qc.invalidateQueries({ queryKey: ["fires"] });
       await qc.invalidateQueries({ queryKey: ["reports", "mine"] });
@@ -66,28 +106,78 @@ export default function Confirm() {
     }
   };
 
+  // Submit button decides what to do based on the current analysis state.
+  // First press: runs the YOLO check. Once valid: sends the report.
+  const onPrimary = async () => {
+    if (analysis.kind === "running" || submitting) return;
+    if (analysis.kind === "done" && analysis.result.valid) {
+      await sendReport();
+    } else {
+      await runAnalysis();
+    }
+  };
+
+  const primaryLabel = (() => {
+    if (submitting) return "Sending…";
+    if (analysis.kind === "running") return "Verifying photo…";
+    if (analysis.kind === "done" && analysis.result.valid)
+      return `Send sighting · fire ${pct(analysis.result.max_fire_confidence)}`;
+    if (analysis.kind === "done") return "Photo rejected — retry?";
+    if (analysis.kind === "error") return "Verification failed — retry";
+    return "Verify photo";
+  })();
+
+  const primaryDisabled =
+    !ready ||
+    submitting ||
+    analysis.kind === "running" ||
+    (analysis.kind === "done" && !analysis.result.valid);
+
   return (
     <ScrollView contentContainerStyle={{ padding: t.space.lg, gap: t.space.lg }}>
       <View style={{ gap: t.space.xs }}>
         <Text variant="label" muted>step 02 / 02</Text>
         <Text variant="h2">Review your sighting</Text>
         <Text variant="subtext" muted>
-          confirm the details below before we triangulate
+          tap verify so our fire model can confirm the photo before we triangulate
         </Text>
       </View>
 
       {draft.photoUri ? (
-        <Image
-          source={{ uri: draft.photoUri }}
+        <View
+          onLayout={(e: LayoutChangeEvent) =>
+            setImgLayout({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })
+          }
           style={{
             width: "100%",
             aspectRatio: 4 / 3,
             borderRadius: t.radius.lg,
             backgroundColor: t.colors.surfaceAlt,
+            overflow: "hidden",
+            position: "relative",
           }}
-          contentFit="cover"
-        />
+        >
+          <Image
+            source={{ uri: draft.photoUri }}
+            style={{ width: "100%", height: "100%" }}
+            contentFit="cover"
+          />
+          {analysis.kind === "done" && imgLayout.w > 0
+            ? analysis.result.detections
+                .filter((d) => d.bbox && d.confidence >= 0.25)
+                .map((d, i) => (
+                  <BoundingBox
+                    key={i}
+                    detection={d}
+                    containerW={imgLayout.w}
+                    containerH={imgLayout.h}
+                  />
+                ))
+            : null}
+        </View>
       ) : null}
+
+      <AnalysisCard state={analysis} />
 
       <View
         style={{
@@ -119,16 +209,128 @@ export default function Confirm() {
       )}
 
       <View style={{ gap: t.space.sm }}>
-        <Button label="Submit sighting" fullWidth loading={submitting} onPress={submit} />
+        <Button
+          label={primaryLabel}
+          fullWidth
+          loading={submitting || analysis.kind === "running"}
+          disabled={primaryDisabled}
+          onPress={onPrimary}
+        />
         <Button
           label="Retake photo"
           variant="secondary"
           fullWidth
-          disabled={submitting}
+          disabled={submitting || analysis.kind === "running"}
           onPress={() => router.replace("/(app)/report/capture")}
         />
       </View>
     </ScrollView>
+  );
+}
+
+function AnalysisCard({ state }: { state: AnalyzeState }) {
+  const t = useTheme();
+
+  const borderColor =
+    state.kind === "done"
+      ? state.result.valid
+        ? t.colors.success
+        : t.colors.danger
+      : state.kind === "error"
+        ? t.colors.danger
+        : t.colors.border;
+
+  return (
+    <View
+      style={{
+        backgroundColor: t.colors.surface,
+        borderRadius: t.radius.lg,
+        borderWidth: 1,
+        borderColor,
+        padding: t.space.lg,
+        gap: t.space.sm,
+      }}
+    >
+      <Text variant="label" muted>vision check</Text>
+
+      {state.kind === "idle" ? (
+        <Text variant="subtext" muted>
+          tap “Verify photo” below to run the fire-detection model
+        </Text>
+      ) : state.kind === "running" ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: t.space.sm }}>
+          <ActivityIndicator color={t.colors.inkMuted} />
+          <Text variant="subtext" muted>analyzing your photo…</Text>
+        </View>
+      ) : state.kind === "error" ? (
+        <Text variant="subtext" color={t.colors.danger}>{state.message}</Text>
+      ) : (
+        <>
+          <Text
+            variant="h4"
+            color={state.result.valid ? t.colors.success : t.colors.danger}
+          >
+            {state.result.valid ? "Fire confirmed" : "Couldn’t verify fire"}
+          </Text>
+          <Text variant="subtext" muted>{state.result.message}</Text>
+          <View style={{ flexDirection: "row", gap: t.space.lg, marginTop: t.space.xs }}>
+            <Row label="fire" value={pct(state.result.max_fire_confidence)} />
+            <Row label="smoke" value={pct(state.result.max_smoke_confidence)} />
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+function BoundingBox({
+  detection,
+  containerW,
+  containerH,
+}: {
+  detection: AnalysisDetection;
+  containerW: number;
+  containerH: number;
+}) {
+  const t = useTheme();
+  if (!detection.bbox) return null;
+  const [x1, y1, x2, y2] = detection.bbox;
+  const left = x1 * containerW;
+  const top = y1 * containerH;
+  const width = Math.max(2, (x2 - x1) * containerW);
+  const height = Math.max(2, (y2 - y1) * containerH);
+  const isSmoke = detection.class_name.toLowerCase() === "smoke";
+  const color = isSmoke ? "#E8A317" : t.colors.accent;
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        left,
+        top,
+        width,
+        height,
+        borderWidth: 2,
+        borderColor: color,
+        borderRadius: 4,
+      }}
+    >
+      <View
+        style={{
+          position: "absolute",
+          top: -22,
+          left: -2,
+          backgroundColor: color,
+          paddingHorizontal: 6,
+          paddingVertical: 2,
+          borderRadius: 4,
+        }}
+      >
+        <Text variant="label" color="#000">
+          {detection.class_name} {Math.round(detection.confidence * 100)}%
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -141,6 +343,10 @@ function Row({ label, value }: { label: string; value: string }) {
       <Text variant="mono">{value}</Text>
     </View>
   );
+}
+
+function pct(v: number): string {
+  return `${(v * 100).toFixed(0)}%`;
 }
 
 function fmtCoord(lat: number | null, lon: number | null): string {

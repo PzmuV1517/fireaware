@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from geoalchemy2.shape import to_shape
 from shapely.geometry import Point
 from sqlalchemy import func, select
@@ -12,6 +12,7 @@ from app.models.fire import Fire
 from app.models.report import Report
 from app.models.user import User
 from app.schemas.fire import FireDetail, FireOut
+from app.services.storage import request_base, to_proxied_url
 
 router = APIRouter()
 
@@ -55,7 +56,11 @@ def list_fires(
 
 
 @router.get("/{fire_id}", response_model=FireDetail)
-def fire_detail(fire_id: UUID, db: Session = Depends(get_db)) -> FireDetail:
+def fire_detail(
+    fire_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> FireDetail:
     f = db.get(Fire, fire_id)
     if not f:
         raise HTTPException(status_code=404, detail="Fire not found")
@@ -65,8 +70,12 @@ def fire_detail(fire_id: UUID, db: Session = Depends(get_db)) -> FireDetail:
         .order_by(Report.taken_at.desc())
         .limit(20)
     ).all()
+    # rewrite stored MinIO URLs so they're reachable from any client that
+    # already speaks to this backend
+    base_url = request_base(request.url.scheme, request.headers.get("host", request.url.netloc))
+    proxied: list[str] = [u for u in (to_proxied_url(base_url, p) for p in photos) if u]
     base = _fire_to_out(f)
-    return FireDetail(**base.model_dump(), photo_urls=list(photos))
+    return FireDetail(**base.model_dump(), photo_urls=proxied)
 
 
 @router.delete("/{fire_id}", status_code=204)

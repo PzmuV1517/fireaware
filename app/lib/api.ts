@@ -6,6 +6,28 @@ export interface ApiError extends Error {
   body: unknown;
 }
 
+/**
+ * fetch with a single retry on "Network request failed". React Native
+ * (especially Android) occasionally drops the first request to a host before
+ * the TCP connection is warm — surfaces as a TypeError. A short delay + one
+ * retry hides this from callers without introducing duplicate-submit risk
+ * for the normal failure case.
+ */
+async function fetchOnce(url: string, init: RequestInit, retries = 1): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (e) {
+    const looksLikeNetwork =
+      e instanceof TypeError ||
+      (e instanceof Error && /network request failed|failed to fetch/i.test(e.message));
+    if (retries > 0 && looksLikeNetwork) {
+      await new Promise((r) => setTimeout(r, 350));
+      return fetchOnce(url, init, retries - 1);
+    }
+    throw e;
+  }
+}
+
 async function request<T>(
   path: string,
   init: RequestInit & { auth?: boolean } = {},
@@ -20,7 +42,7 @@ async function request<T>(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const res = await fetch(`${getApiBase()}${path}`, { ...init, headers });
+  const res = await fetchOnce(`${getApiBase()}${path}`, { ...init, headers });
 
   // 204 No Content: there's no body to parse even if Content-Type claims JSON.
   if (res.status === 204) {
@@ -121,6 +143,22 @@ export interface WaterReserve {
   created_at: string;
 }
 
+export interface AnalysisDetection {
+  class_name: string;
+  confidence: number;
+  /** Normalised [x1, y1, x2, y2] in image-space, each value in [0, 1]. */
+  bbox?: [number, number, number, number] | null;
+}
+
+export interface AnalysisResult {
+  detections: AnalysisDetection[];
+  max_fire_confidence: number;
+  max_smoke_confidence: number;
+  threshold: number;
+  valid: boolean;
+  message: string;
+}
+
 export interface CuttingLine {
   id: string;
   created_by: string;
@@ -193,6 +231,11 @@ export const api = {
           auth: false,
         },
       ),
+    analyze: (form: FormData) =>
+      request<AnalysisResult>("/api/v1/reports/analyze", {
+        method: "POST",
+        body: form,
+      }),
   },
   weather: {
     get: (lat: number, lon: number) =>

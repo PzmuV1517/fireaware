@@ -1,7 +1,7 @@
 import json
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from geoalchemy2.shape import to_shape
 from pydantic import ValidationError
 from shapely.geometry import Point
@@ -13,6 +13,7 @@ from app.core.db import get_db
 from app.models.report import Report
 from app.models.user import User
 from app.core.security import hash_password
+from app.schemas.analysis import AnalysisResult
 from app.schemas.report import (
     DemoReportCreate,
     ReportCreate,
@@ -20,7 +21,8 @@ from app.schemas.report import (
     ReportPublicOut,
     ReportSubmitResponse,
 )
-from app.services.storage import upload_photo
+from app.services import vision
+from app.services.storage import request_base, to_proxied_url, upload_photo
 from app.services.triangulation import recompute_for_region
 
 router = APIRouter()
@@ -81,6 +83,21 @@ def create_report(
         fire_id=report.fire_id,
         matched=report.fire_id is not None,
     )
+
+
+@router.post("/analyze", response_model=AnalysisResult)
+def analyze_report(
+    photo: UploadFile = File(...),
+    _user: User = Depends(get_current_user),
+) -> AnalysisResult:
+    """Run the YOLO fire/smoke detector on a candidate photo and return the
+    result. The client is expected to call this BEFORE POST /reports — if
+    `valid` is false the client refuses to submit and tells the user."""
+    try:
+        content = photo.file.read()
+        return vision.analyze_image(content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}") from e
 
 
 def _report_to_public(r: Report) -> ReportPublicOut:
@@ -168,6 +185,7 @@ def list_reports(
 
 @router.get("/mine", response_model=list[ReportOut])
 def my_reports(
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     limit: int = 50,
@@ -175,4 +193,9 @@ def my_reports(
     rows = db.scalars(
         select(Report).where(Report.user_id == user.id).order_by(Report.created_at.desc()).limit(limit)
     ).all()
-    return [_report_to_out(r) for r in rows]
+    base = request_base(request.url.scheme, request.headers.get("host", request.url.netloc))
+    out: list[ReportOut] = []
+    for r in rows:
+        o = _report_to_out(r)
+        out.append(o.model_copy(update={"photo_url": to_proxied_url(base, o.photo_url)}))
+    return out

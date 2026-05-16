@@ -26,6 +26,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--imgsz", type=int, default=640, help="Image size.")
     parser.add_argument("--batch", type=int, default=16, help="Batch size.")
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="Number of dataloader worker processes.",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default="",
@@ -74,6 +80,7 @@ def main() -> None:
         epochs=args.epochs,
         imgsz=args.imgsz,
         batch=args.batch,
+        workers=args.workers,
         device=device,
         project=args.output_dir,
         name=run_name,
