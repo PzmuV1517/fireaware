@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: fireaware
       POSTGRES_DB: fireaware
     ports:
-      - "5432:5432"
+      - "5433:5432"  # <-- Changed host port to 5433 to avoid conflicts!
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
