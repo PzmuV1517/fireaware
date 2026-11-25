@@ -71,23 +71,29 @@ Satellites spot wildfires once they're big enough to see from orbit. By then it'
 
 ## Screenshots
 
-> Drop PNGs into `docs/screenshots/` with the filenames below and they'll light up here. Hero fire photo above is one of the training-set frames.
+> Live captures from the running stack — 5 seeded fires across Romania, a fireman account driving Mission Control, and the mobile viewport matched to a Pixel-6 / iPhone 15.
 
 <div align="center">
 
 ### Public map · web
 
-<img src="docs/screenshots/web-map.png" alt="Public map with triangulated fire pins" width="90%" />
+<img src="docs/screenshots/web-map.png" alt="Public map with triangulated fire pins" width="92%" />
 
-<sub>Confirmed fires, raw sightings toggle, weather widget, click-to-report pin-drop demo.</sub>
+<sub>Five confirmed fires across Romania — Făgăraș, Apuseni, Bucegi, Maramureș, Dobrogea — with raw sightings as blue dots, a FireAware header island, Reports / Drop-a-pin chips, and the weather widget bottom-right.</sub>
+
+<br /><br />
+
+<img src="docs/screenshots/web-map-weather.png" alt="Reports toggle on, weather widget open" width="92%" />
+
+<sub><b>REPORTS</b> toggle lit · weather widget expanded showing live Open-Meteo wind (<code>−8 °C · NW · 3 km/h</code>) at the current map centre.</sub>
 
 <br /><br />
 
 ### Mission control · fireman role
 
-<img src="docs/screenshots/mission-control.png" alt="Mission control sidebar — zones, cutting lines, water reserves, propagation" width="90%" />
+<img src="docs/screenshots/mission-control.png" alt="Mission control sidebar — zones, cutting lines, water reserves, propagation" width="92%" />
 
-<sub>Draw response zones, firebreak cutting lines, place water-reserve pins, and step a propagation forecast forward in 1 / 2 / 4 / 8 / 24 h rings driven by live wind data.</sub>
+<sub>Fire Zones · Backburn Lines · 16 Water Reserves · 5 Active Fires · Propagation Forecast panel · "Draw zone" and "Draw backburn line" tools bottom-right. Map / Mission Control toggle top-right.</sub>
 
 </div>
 
@@ -96,20 +102,20 @@ Satellites spot wildfires once they're big enough to see from orbit. By then it'
 <table width="100%">
 <tr>
 <td align="center" width="25%">
-<img src="docs/screenshots/mobile-map.png" alt="Mobile map view" width="100%" /><br />
-<sub><b>Mobile map</b></sub>
+<img src="docs/screenshots/mobile-map.png" alt="Mobile map view, unauthenticated" width="100%" /><br />
+<sub><b>Mobile map</b><br />anonymous · header island, Reports + Drop-a-pin chips, fire + sighting clusters over Romania</sub>
 </td>
 <td align="center" width="25%">
-<img src="docs/screenshots/mobile-calibrate.png" alt="GPS & compass calibration" width="100%" /><br />
-<sub><b>Calibration gate</b></sub>
+<img src="docs/screenshots/mobile-login.png" alt="Mobile sign-in screen" width="100%" /><br />
+<sub><b>Sign in</b><br />EB Garamond "Welcome back", backend URL auto-detector pinned to the bottom</sub>
 </td>
 <td align="center" width="25%">
-<img src="docs/screenshots/mobile-capture.png" alt="Camera capture with compass" width="100%" /><br />
-<sub><b>Camera capture</b></sub>
+<img src="docs/screenshots/mobile-mission-control.png" alt="Mobile fireman mission control" width="100%" /><br />
+<sub><b>Mission Control · mobile</b><br />the full sidebar stacks vertically — Fire Zones, Backburn Lines, 16 water reserves, 5 active fires, propagation forecast</sub>
 </td>
 <td align="center" width="25%">
-<img src="docs/screenshots/mobile-confirm.png" alt="Report confirmation + YOLO detection" width="100%" /><br />
-<sub><b>Confirm & submit</b></sub>
+<img src="docs/screenshots/mobile-fire-detail.png" alt="Fire detail screen" width="100%" /><br />
+<sub><b>Fire detail</b><br />lat/lon to 4 decimals, <code>5 reports · confidence 91 %</code>, first + last seen timestamps</sub>
 </td>
 </tr>
 </table>
